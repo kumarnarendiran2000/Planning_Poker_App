@@ -21,11 +21,28 @@ const LandingPage: React.FC = () => {
     }
   };
 
-  const handleJoinRoom = () => {
+  const handleJoinRoom = async () => {
     if (roomCode && memberName) {
-      navigate(`/room/${roomCode}`, { state: { memberName } });
+      try {
+        const response = await fetch('http://localhost:3000/join-room', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ RoomCode: roomCode, MemberName: memberName }),
+        });
+        const data = await response.json();
+        if (data.success) {
+          navigate(`/room/${roomCode}`, { state: { memberName } });
+        } else {
+          console.error('Failed to join room:', data.message);
+        }
+      } catch (error) {
+        console.error('Error:', error);
+      }
     }
   };
+  
 
   return (
     <div className="flex flex-col items-center justify-center h-screen bg-gray-100">
