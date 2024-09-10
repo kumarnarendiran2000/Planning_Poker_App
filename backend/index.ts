@@ -73,33 +73,35 @@ app.post('/start-voting', async (c) => {
   const pool = await connectToDatabase();
 
   try {
-    const roomResult = await pool.request()
+    const result = await pool.request()
       .input('RoomCode', sql.NVarChar(50), RoomCode)
-      .query(`SELECT RoomId FROM Rooms WHERE RoomCode = @RoomCode`);
+      .query(`UPDATE Rooms SET VotingStarted = 1 WHERE RoomCode = @RoomCode`);
 
-    if (roomResult.recordset.length === 0) {
-      return c.json({ success: false, message: 'Room not found' }, 404);
+    if (result.rowsAffected[0] > 0) {
+      return c.json({ success: true, message: 'Voting session started' });
+    } else {
+      return c.json({ success: false, message: 'Room not found' });
     }
-
-    const RoomId = roomResult.recordset[0].RoomId;
-
-    // Need to add more logic here to handle session management
-
-    return c.json({ success: true, message: 'Voting session started' });
   } catch (error) {
     console.error('Error starting voting session:', error);
     return c.json({ success: false, message: 'Failed to start voting session' }, 500);
   }
 });
 
+
+
 app.post('/cast-vote', async (c) => {
   const { RoomCode, MemberName, VoteValue } = await c.req.json();
   const pool = await connectToDatabase();
 
   try {
+    console.log('Received vote:', { RoomCode, MemberName, VoteValue });
+
     const roomResult = await pool.request()
       .input('RoomCode', sql.NVarChar(50), RoomCode)
       .query(`SELECT RoomId FROM Rooms WHERE RoomCode = @RoomCode`);
+    
+    console.log('Room Result:', roomResult.recordset);
 
     if (roomResult.recordset.length === 0) {
       return c.json({ success: false, message: 'Room not found' }, 404);
@@ -111,21 +113,41 @@ app.post('/cast-vote', async (c) => {
       .input('RoomId', sql.UniqueIdentifier, RoomId)
       .input('MemberName', sql.NVarChar(100), MemberName)
       .query(`SELECT MemberId FROM Members WHERE RoomId = @RoomId AND MemberName = @MemberName`);
+    
+    console.log('Member Result:', memberResult.recordset);
 
     if (memberResult.recordset.length === 0) {
       return c.json({ success: false, message: 'Member not found in the room' }, 404);
     }
 
     const MemberId = memberResult.recordset[0].MemberId;
-    const VoteId = uuidv4();
 
-    await pool.request()
-      .input('VoteId', sql.UniqueIdentifier, VoteId)
+    // Log vote check result
+    const voteResult = await pool.request()
       .input('RoomId', sql.UniqueIdentifier, RoomId)
       .input('MemberId', sql.UniqueIdentifier, MemberId)
-      .input('VoteValue', sql.Int, VoteValue)
-      .query(`INSERT INTO Votes (VoteId, RoomId, MemberId, VoteValue) 
-              VALUES (@VoteId, @RoomId, @MemberId, @VoteValue)`);
+      .query(`SELECT VoteId FROM Votes WHERE RoomId = @RoomId AND MemberId = @MemberId`);
+    
+    console.log('Vote Result:', voteResult.recordset);
+
+    if (voteResult.recordset.length > 0) {
+      const VoteId = voteResult.recordset[0].VoteId;
+      await pool.request()
+        .input('VoteId', sql.UniqueIdentifier, VoteId)
+        .input('VoteValue', sql.Int, VoteValue)
+        .query(`UPDATE Votes SET VoteValue = @VoteValue WHERE VoteId = @VoteId`);
+      console.log('Vote Updated:', { VoteId, VoteValue });
+    } else {
+      const VoteId = uuidv4();
+      await pool.request()
+        .input('VoteId', sql.UniqueIdentifier, VoteId)
+        .input('RoomId', sql.UniqueIdentifier, RoomId)
+        .input('MemberId', sql.UniqueIdentifier, MemberId)
+        .input('VoteValue', sql.Int, VoteValue)
+        .query(`INSERT INTO Votes (VoteId, RoomId, MemberId, VoteValue) 
+                VALUES (@VoteId, @RoomId, @MemberId, @VoteValue)`);
+      console.log('Vote Inserted:', { VoteId, RoomId, MemberId, VoteValue });
+    }
 
     return c.json({ success: true, message: 'Vote cast successfully' });
   } catch (error) {
@@ -133,6 +155,7 @@ app.post('/cast-vote', async (c) => {
     return c.json({ success: false, message: 'Failed to cast vote' }, 500);
   }
 });
+
 
 app.post('/reveal-votes', async (c) => {
   const { RoomCode } = await c.req.json();
@@ -162,6 +185,27 @@ app.post('/reveal-votes', async (c) => {
     return c.json({ success: false, message: 'Failed to reveal votes' }, 500);
   }
 });
+
+app.get('/voting-status', async (c) => {
+  try {
+    const { RoomCode } = c.req.query();
+    const pool = await connectToDatabase();
+
+    const result = await pool.request()
+      .input('RoomCode', sql.NVarChar(50), RoomCode)
+      .query(`SELECT VotingStarted FROM Rooms WHERE RoomCode = @RoomCode`);
+
+    if (result.recordset.length > 0) {
+      return c.json({ votingStarted: result.recordset[0].VotingStarted });
+    } else {
+      return c.json({ votingStarted: false, message: 'Room not found' }, 404);
+    }
+  } catch (error) {
+    console.error('Error fetching voting status:', error);
+    return c.json({ votingStarted: false, message: 'Server error' }, 500);
+  }
+});
+
 
 app.get('/voting-stats', async (c) => {
   const { RoomCode } = c.req.query();

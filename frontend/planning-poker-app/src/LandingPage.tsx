@@ -33,6 +33,7 @@ const LandingPage: React.FC = () => {
         });
         const data = await response.json();
         if (data.success) {
+          // Pass memberName in state
           navigate(`/room/${roomCode}`, { state: { memberName } });
         } else {
           console.error('Failed to join room:', data.message);
@@ -42,7 +43,6 @@ const LandingPage: React.FC = () => {
       }
     }
   };
-  
 
   return (
     <div className="flex flex-col items-center justify-center h-screen bg-gray-100">

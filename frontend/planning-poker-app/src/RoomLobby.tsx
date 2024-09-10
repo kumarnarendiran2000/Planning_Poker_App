@@ -1,14 +1,20 @@
 import React, { useState, useEffect } from 'react';
-import { useLocation, useParams } from 'react-router-dom';
+import { useLocation, useParams, useNavigate } from 'react-router-dom';
 
 const RoomLobby: React.FC = () => {
   const { roomCode } = useParams<{ roomCode: string }>();
   const location = useLocation();
   const isScrumMaster = location.state?.isScrumMaster;
-  const [members, setMembers] = useState<string[]>([]);
+  const memberName = location.state?.memberName;  // Now we can access memberName from location.state
+  const navigate = useNavigate();
 
+  const [members, setMembers] = useState<string[]>([]);
+  const [votingStarted, setVotingStarted] = useState<boolean>(false);
+
+  // Fetch members from the backend and update the state
   useEffect(() => {
-    // Fetch members from the backend
+    if (!roomCode) return;
+
     const fetchMembers = async () => {
       try {
         const response = await fetch(`http://localhost:3000/room-members?RoomCode=${roomCode}`);
@@ -21,9 +27,45 @@ const RoomLobby: React.FC = () => {
       }
     };
 
-    fetchMembers();
+    fetchMembers(); // Initial fetch
+
+    const intervalId = setInterval(fetchMembers, 2000); // Poll every 2 seconds
+
+    return () => clearInterval(intervalId); // Cleanup on unmount
   }, [roomCode]);
 
+  // Poll the voting status from the backend and update the state
+  useEffect(() => {
+    if (!roomCode) return;
+
+    const pollVotingStatus = async () => {
+      try {
+        const response = await fetch(`http://localhost:3000/voting-status?RoomCode=${roomCode}`);
+        const data = await response.json();
+        if (data.votingStarted) {
+          setVotingStarted(true);
+        }
+      } catch (error) {
+        console.error('Failed to fetch voting status:', error);
+      }
+    };
+
+    pollVotingStatus(); // Initial check
+
+    const intervalId = setInterval(pollVotingStatus, 2000); // Poll every 2 seconds
+
+    return () => clearInterval(intervalId); // Cleanup on unmount
+  }, [roomCode]);
+
+  // Handle navigation to the voting screen when voting starts
+  useEffect(() => {
+    if (votingStarted) {
+      // Pass both isScrumMaster and memberName
+      navigate(`/voting/${roomCode}`, { state: { isScrumMaster, memberName } });
+    }
+  }, [votingStarted, navigate, roomCode, isScrumMaster, memberName]);
+
+  // Function to handle starting the voting session
   const handleStartVoting = async () => {
     try {
       const response = await fetch('http://localhost:3000/start-voting', {
@@ -35,7 +77,8 @@ const RoomLobby: React.FC = () => {
       });
       const data = await response.json();
       if (data.success) {
-        console.log('Voting session started');
+        // Pass both isScrumMaster and memberName when voting starts
+        navigate(`/voting/${roomCode}`, { state: { isScrumMaster, memberName } });
       } else {
         console.error('Failed to start voting session:', data.message);
       }
