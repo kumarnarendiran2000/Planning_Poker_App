@@ -8,7 +8,7 @@ const VotingScreen: React.FC = () => {
   const memberName = location.state?.memberName;
 
   const [vote, setVote] = useState<number | null>(null);
-  const [votes, setVotes] = useState<{ member: string, vote: number }[]>([]);
+  const [votes, setVotes] = useState<{ MemberName: string, VoteValue: number }[]>([]);
   const [revealVotes, setRevealVotes] = useState<boolean>(false);
 
   // Handle voting by members
@@ -114,7 +114,7 @@ const VotingScreen: React.FC = () => {
           <h2 className="text-xl font-semibold mb-2">Votes</h2>
           <ul>
             {votes.map((v, index) => (
-              <li key={index} className="mb-1">{v.member}: {v.vote}</li>
+              <li key={index} className="mb-1">{v.MemberName}: {v.VoteValue}</li>
             ))}
           </ul>
         </div>
