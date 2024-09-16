@@ -5,7 +5,7 @@ const RoomLobby: React.FC = () => {
   const { roomCode } = useParams<{ roomCode: string }>();
   const location = useLocation();
   const isScrumMaster = location.state?.isScrumMaster;
-  const memberName = location.state?.memberName;  // Now we can access memberName from location.state
+  const memberName = location.state?.memberName;  // Access memberName
   const navigate = useNavigate();
 
   const [members, setMembers] = useState<string[]>([]);
@@ -60,7 +60,6 @@ const RoomLobby: React.FC = () => {
   // Handle navigation to the voting screen when voting starts
   useEffect(() => {
     if (votingStarted) {
-      // Pass both isScrumMaster and memberName
       navigate(`/voting/${roomCode}`, { state: { isScrumMaster, memberName } });
     }
   }, [votingStarted, navigate, roomCode, isScrumMaster, memberName]);
@@ -77,7 +76,6 @@ const RoomLobby: React.FC = () => {
       });
       const data = await response.json();
       if (data.success) {
-        // Pass both isScrumMaster and memberName when voting starts
         navigate(`/voting/${roomCode}`, { state: { isScrumMaster, memberName } });
       } else {
         console.error('Failed to start voting session:', data.message);
@@ -97,13 +95,18 @@ const RoomLobby: React.FC = () => {
             <li key={index} className="mb-1">{member}</li>
           ))}
         </ul>
-        {isScrumMaster && (
-          <button
-            onClick={handleStartVoting}
-            className="bg-blue-500 text-white py-2 px-4 mt-4 rounded"
-          >
-            Start Voting
-          </button>
+        {isScrumMaster ? (
+          <div className="mt-4">
+            <p className="text-green-500">You are the Scrum Master!</p>
+            <button
+              onClick={handleStartVoting}
+              className="bg-blue-500 text-white py-2 px-4 mt-4 rounded"
+            >
+              Start Voting
+            </button>
+          </div>
+        ) : (
+          <p className="mt-4 text-blue-600">You are: {memberName}</p>
         )}
       </div>
     </div>

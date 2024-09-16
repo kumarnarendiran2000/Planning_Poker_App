@@ -14,7 +14,7 @@ const LandingPage: React.FC = () => {
       });
       const data = await response.json();
       if (data.success) {
-        navigate(`/room/${data.RoomCode}`, { state: { isScrumMaster: true } });
+        navigate(`/room/${data.RoomCode}`, { state: { isScrumMaster: true, memberName: "Scrum Master" } });
       }
     } catch (error) {
       console.error('Failed to create room:', error);
@@ -33,7 +33,6 @@ const LandingPage: React.FC = () => {
         });
         const data = await response.json();
         if (data.success) {
-          // Pass memberName in state
           navigate(`/room/${roomCode}`, { state: { memberName } });
         } else {
           console.error('Failed to join room:', data.message);

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useLocation, useParams } from 'react-router-dom';
 
 const VotingScreen: React.FC = () => {
@@ -8,10 +8,14 @@ const VotingScreen: React.FC = () => {
   const memberName = location.state?.memberName;
 
   const [vote, setVote] = useState<number | null>(null);
-  const [votes, setVotes] = useState<{ MemberName: string, VoteValue: number }[]>([]);
+  const [textVote, setTextVote] = useState<string>(''); // For text-based vote
+  const [votes, setVotes] = useState<{ MemberName: string, VoteValue: number | string }[]>([]);
   const [revealVotes, setRevealVotes] = useState<boolean>(false);
+  const [castedVote, setCastedVote] = useState<string | number | null>(null); // Store the vote casted
+  const [voteStats, setVoteStats] = useState<{ AverageVote: number; MinVote: number; MaxVote: number; TotalVotes: number } | null>(null); // Vote stats state
+  const inputRef = useRef<HTMLInputElement | null>(null); // Ref for focusing out
 
-  // Handle voting by members
+  // Handle voting by members (number-based)
   const handleVote = async (voteValue: number) => {
     try {
       const response = await fetch('http://localhost:3000/cast-vote', {
@@ -24,6 +28,31 @@ const VotingScreen: React.FC = () => {
       const data = await response.json();
       if (data.success) {
         setVote(voteValue); // Update local state to reflect the vote
+        setCastedVote(voteValue); // Set the vote casted
+      } else {
+        console.error('Failed to cast vote:', data.message);
+      }
+    } catch (error) {
+      console.error('Error casting vote:', error);
+    }
+  };
+
+  // Handle voting by members (text-based)
+  const handleTextVote = async () => {
+    try {
+      const voteValue = textVote;
+      const response = await fetch('http://localhost:3000/cast-vote', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ RoomCode: roomCode, MemberName: memberName, VoteValue: voteValue }),
+      });
+      const data = await response.json();
+      if (data.success) {
+        setCastedVote(voteValue); // Set the vote casted
+        setTextVote(''); // Reset the text input
+        inputRef.current?.blur(); // Remove focus after vote is cast
       } else {
         console.error('Failed to cast vote:', data.message);
       }
@@ -47,6 +76,13 @@ const VotingScreen: React.FC = () => {
       if (data.success) {
         setRevealVotes(true); // Mark votes as revealed
         setVotes(data.votes);  // Directly update votes with the response from reveal-votes
+
+        // Fetch voting stats
+        const statsResponse = await fetch(`http://localhost:3000/voting-stats?RoomCode=${roomCode}`);
+        const statsData = await statsResponse.json();
+        if (statsData.success) {
+          setVoteStats(statsData.stats); // Set voting stats after reveal
+        }
       } else {
         console.error('Failed to reveal votes:', data.message);
       }
@@ -83,6 +119,13 @@ const VotingScreen: React.FC = () => {
     <div className="flex flex-col items-center justify-center h-screen bg-gray-100">
       <h1 className="text-2xl font-bold mb-4">Voting Room: {roomCode}</h1>
 
+      {/* Display if the user is a Scrum Master or a Member */}
+      {isScrumMaster ? (
+        <p className="text-green-500 mb-4">You are the Scrum Master</p>
+      ) : (
+        <p className="text-blue-500 mb-4">You are a Member: {memberName}</p>
+      )}
+
       {!revealVotes && (
         <div className="mb-4">
           {isScrumMaster ? (
@@ -95,15 +138,32 @@ const VotingScreen: React.FC = () => {
           ) : (
             <div>
               <h2 className="text-xl font-semibold mb-2">Cast Your Vote</h2>
-              {[1, 2, 3, 5, 8, 13].map((value) => (
+              <div className="flex items-center space-x-2">  {/* Horizontal Alignment */}
+                {[1, 2, 3, 5, 8, 13].map((value) => (
+                  <button
+                    key={value}
+                    onClick={() => handleVote(value)}
+                    className={`py-2 px-4 m-2 rounded ${vote === value ? 'bg-blue-500 text-white' : 'bg-gray-300'}`}
+                  >
+                    {value}
+                  </button>
+                ))}
+                <input
+                  type="text"
+                  value={textVote}
+                  onChange={(e) => setTextVote(e.target.value)}
+                  placeholder="Enter your vote"
+                  className="border border-gray-400 py-2 px-4 rounded"
+                  ref={inputRef}
+                />
                 <button
-                  key={value}
-                  onClick={() => handleVote(value)}
-                  className={`py-2 px-4 m-2 rounded ${vote === value ? 'bg-blue-500 text-white' : 'bg-gray-300'}`}
+                  onClick={handleTextVote}
+                  className="bg-green-500 text-white py-2 px-4 ml-2 rounded"
                 >
-                  {value}
+                  Submit
                 </button>
-              ))}
+              </div>
+              {castedVote && <p className="mt-4 text-lg">You casted: {castedVote}</p>}
             </div>
           )}
         </div>
@@ -117,6 +177,17 @@ const VotingScreen: React.FC = () => {
               <li key={index} className="mb-1">{v.MemberName}: {v.VoteValue}</li>
             ))}
           </ul>
+
+          {/* Display voting statistics */}
+          {voteStats && (
+            <div className="mt-4 bg-gray-100 p-4 rounded">
+              <h2 className="text-xl font-semibold mb-2">Voting Statistics</h2>
+              <p>Average Vote: {voteStats.AverageVote}</p>
+              <p>Minimum Vote: {voteStats.MinVote}</p>
+              <p>Maximum Vote: {voteStats.MaxVote}</p>
+              <p>Total Votes: {voteStats.TotalVotes}</p>
+            </div>
+          )}
         </div>
       )}
     </div>
