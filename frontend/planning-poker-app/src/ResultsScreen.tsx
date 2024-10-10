@@ -7,23 +7,25 @@ interface Vote {
   VoteValue: number | string;
 }
 
-const ResultsPage: React.FC = () => {
+const ResultsScreen: React.FC = () => {
   const { roomCode } = useParams<{ roomCode: string }>();
   const location = useLocation();
   const navigate = useNavigate();
 
   const [votes, setVotes] = useState<Vote[]>([]);
   const [voteStats, setVoteStats] = useState<{ AverageVote: number; MinVote: number; MaxVote: number; TotalVotes: number } | null>(null);
-  const isScrumMaster = location.state?.isScrumMaster; // Determine if the current user is Scrum Master
-  const [loading, setLoading] = useState<boolean>(true); // To track if the data is being loaded
-  const [error, setError] = useState<string>(''); // To handle any errors
+  const isScrumMaster = location.state?.isScrumMaster;
+  const memberName = location.state?.memberName;
+  const [loading, setLoading] = useState<boolean>(true); 
+  const [error, setError] = useState<string>(''); 
+  const [isRevote, setIsRevote] = useState<boolean>(false); 
 
   // Fetch the votes and stats when the page loads
   useEffect(() => {
     const fetchResults = async () => {
       try {
-        setLoading(true); // Start loading
-        setError(''); // Reset error
+        setLoading(true); 
+        setError(''); 
 
         // Fetch votes
         const response = await fetch(`http://localhost:3000/reveal-votes`, {
@@ -43,45 +45,49 @@ const ResultsPage: React.FC = () => {
             setVoteStats(statsData.stats);
           }
         } else {
-          setError('No votes available yet.'); // Error if no votes found
+          setError('No votes available yet.'); 
         }
       } catch (error) {
         setError('Failed to fetch results. Please try again later.');
         console.error('Error fetching results:', error);
       } finally {
-        setLoading(false); // Stop loading
+        setLoading(false); 
       }
     };
 
     fetchResults();
   }, [roomCode]);
 
-  // Handle Revote Functionality
-  const handleRevote = async () => {
-    try {
-      const response = await fetch('http://localhost:3000/revote', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ RoomCode: roomCode }),
-      });
-      const data = await response.json();
-      if (data.success) {
-        navigate(`/voting/${roomCode}`, { state: { isScrumMaster } }); // Redirect back to voting screen
-      } else {
-        setError('Failed to initiate revote. Please try again.');
-        console.error('Failed to initiate revote:', data.message);
+  // Polling to check if revote is initiated
+  useEffect(() => {
+    const intervalId = setInterval(async () => {
+      try {
+        const response = await fetch(`http://localhost:3000/revote-status?RoomCode=${roomCode}`);
+        const data = await response.json();
+        console.log('Revote Status Response:', data);
+        if (data.success && data.isRevote) {
+          setIsRevote(true); 
+        }
+      } catch (error) {
+        console.error('Failed to fetch revote status:', error);
       }
-    } catch (error) {
-      setError('Error initiating revote.');
-      console.error('Error initiating revote:', error);
+    }, 2000); 
+
+    return () => clearInterval(intervalId); 
+  }, [roomCode]);
+
+  // Redirect members to voting screen once revote is initiated
+  useEffect(() => {
+    if (isRevote && !isScrumMaster) {
+      navigate(`/voting/${roomCode}`, { state: { memberName } }); 
     }
-  };
+  }, [isRevote, navigate, roomCode, isScrumMaster, memberName]);
 
   return (
     <div className="flex flex-col items-center justify-center h-screen bg-gray-50">
       <div className="bg-white shadow-lg rounded-lg p-6 w-full max-w-2xl">
         <h1 className="text-3xl font-bold text-center mb-6 text-gray-800">Voting Results for Room: {roomCode}</h1>
-        
+
         {loading ? (
           <p className="text-gray-500">Loading results...</p>
         ) : error ? (
@@ -113,16 +119,7 @@ const ResultsPage: React.FC = () => {
               </div>
             )}
 
-            {isScrumMaster && (
-              <div className="mt-4">
-                <button
-                  onClick={handleRevote}
-                  className="bg-red-500 hover:bg-red-600 text-white py-3 px-4 w-full rounded transition duration-300"
-                >
-                  Revote
-                </button>
-              </div>
-            )}
+            {!isScrumMaster && <p className="text-blue-600">You are: {memberName}</p>}
           </>
         )}
       </div>
@@ -130,4 +127,4 @@ const ResultsPage: React.FC = () => {
   );
 };
 
-export default ResultsPage;
+export default ResultsScreen;

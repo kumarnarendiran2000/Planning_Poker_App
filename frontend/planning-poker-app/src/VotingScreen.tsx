@@ -14,6 +14,7 @@ const VotingScreen: React.FC = () => {
   const [castedVote, setCastedVote] = useState<string | number | null>(null); 
   const [voteStats, setVoteStats] = useState<{ AverageVote: number; MinVote: number; MaxVote: number; TotalVotes: number } | null>(null); 
   const [error, setError] = useState<string>(''); 
+  const [isRevote, setIsRevote] = useState<boolean>(false); 
   const inputRef = useRef<HTMLInputElement | null>(null); 
 
   // Function to cast a vote
@@ -89,7 +90,7 @@ const VotingScreen: React.FC = () => {
     }
   };
 
-  // Function to handle revote
+  // Function to handle revote (for Scrum Master only)
   const handleRevote = async () => {
     try {
       const response = await fetch('http://localhost:3000/revote', {
@@ -105,7 +106,7 @@ const VotingScreen: React.FC = () => {
         setCastedVote(null);
         setVoteStats(null);
         
-        // Redirect everyone back to their voting pages
+        // Redirect back to the voting screen for Scrum Master to see the "Reveal Votes" button again
         navigate(`/voting/${roomCode}`, { state: { isScrumMaster, memberName } });
       } else {
         console.error('Failed to initiate revote:', data.message);
@@ -133,6 +134,23 @@ const VotingScreen: React.FC = () => {
     return () => clearInterval(intervalId); // Cleanup on unmount
   }, [roomCode]);
 
+  // Poll for revote status for Scrum Master and members
+  useEffect(() => {
+    const intervalId = setInterval(async () => {
+      try {
+        const response = await fetch(`http://localhost:3000/revote-status?RoomCode=${roomCode}`);
+        const data = await response.json();
+        if (data.success && data.isRevote) {
+          setIsRevote(true); 
+        }
+      } catch (error) {
+        console.error('Failed to fetch revote status:', error);
+      }
+    }, 2000);
+
+    return () => clearInterval(intervalId); // Cleanup on unmount
+  }, [roomCode]);
+
   // Redirect members to results page once votes are revealed
   useEffect(() => {
     if (revealVotes && !isScrumMaster) {
@@ -140,6 +158,13 @@ const VotingScreen: React.FC = () => {
       navigate(`/results/${roomCode}`, { state: { votes, voteStats, memberName } });
     }
   }, [revealVotes, navigate, roomCode, votes, voteStats, memberName, isScrumMaster]);
+
+  // Redirect Scrum Master back to the voting screen after revote is initiated
+  useEffect(() => {
+    if (isRevote && isScrumMaster) {
+      navigate(`/voting/${roomCode}`, { state: { isScrumMaster, memberName } });
+    }
+  }, [isRevote, navigate, roomCode, isScrumMaster, memberName]);
 
   return (
     <div className="flex flex-col items-center justify-center h-screen bg-gray-50">

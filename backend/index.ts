@@ -172,10 +172,10 @@ app.post('/reveal-votes', async (c) => {
 
     const RoomId = roomResult.recordset[0].RoomId;
 
-    // Update the Room to set VotingFrozen to true
+    // Update the Room to set VotingFrozen to true and isRevote to 0
     await pool.request()
       .input('RoomId', sql.UniqueIdentifier, RoomId)
-      .query(`UPDATE Rooms SET VotingFrozen = 1 WHERE RoomId = @RoomId`);
+      .query(`UPDATE Rooms SET VotingFrozen = 1, IsRevote = 0 WHERE RoomId = @RoomId`);
 
     // Fetch the votes after revealing them
     const votesResult = await pool.request()
@@ -277,17 +277,17 @@ app.get('/room-members', async (c) => {
 });
 
 
-app.get('/voting-freeze-status', async (c) => {
+app.get('/revote-status', async (c) => {
   const { RoomCode } = c.req.query();
   const pool = await connectToDatabase();
 
   try {
     const result = await pool.request()
       .input('RoomCode', sql.NVarChar(50), RoomCode)
-      .query(`SELECT VotingFrozen FROM Rooms WHERE RoomCode = @RoomCode`);
+      .query(`SELECT IsRevote FROM Rooms WHERE RoomCode = @RoomCode`);
 
     if (result.recordset.length > 0) {
-      return c.json({ success: true, VotingFrozen: result.recordset[0].VotingFrozen });
+      return c.json({ success: true, isRevote: result.recordset[0].IsRevote });
     } else {
       return c.json({ success: false, message: 'Room not found' });
     }
@@ -296,7 +296,9 @@ app.get('/voting-freeze-status', async (c) => {
   }
 });
 
-// Example endpoint for resetting votes
+
+
+// Backend Revote Endpoint
 app.post('/revote', async (c) => {
   const { RoomCode } = await c.req.json();
   const pool = await connectToDatabase();
@@ -313,20 +315,42 @@ app.post('/revote', async (c) => {
 
     const RoomId = roomResult.recordset[0].RoomId;
 
-    // Reset the votes for the room
+    // Reset the votes for the room and reset the VotingFrozen and isRevote flags
     await pool.request()
       .input('RoomId', sql.UniqueIdentifier, RoomId)
       .query(`DELETE FROM Votes WHERE RoomId = @RoomId`);
 
-    // Optionally, reset the voting status in the Rooms table if needed
     await pool.request()
       .input('RoomId', sql.UniqueIdentifier, RoomId)
-      .query(`UPDATE Rooms SET VotingStarted = 0 WHERE RoomId = @RoomId`);
+      .query(`UPDATE Rooms SET VotingStarted = 1, VotingFrozen = 0, IsRevote = 1 WHERE RoomId = @RoomId`);
 
     return c.json({ success: true });
   } catch (error) {
     console.error('Error initiating revote:', error);
     return c.json({ success: false, message: 'Failed to initiate revote' }, 500);
+  }
+});
+
+// Voting freeze status endpoint
+app.get('/voting-freeze-status', async (c) => {
+  const { RoomCode } = c.req.query();
+  const pool = await connectToDatabase();
+
+  try {
+    const result = await pool.request()
+      .input('RoomCode', sql.NVarChar(50), RoomCode)
+      .query(`SELECT VotingFrozen FROM Rooms WHERE RoomCode = @RoomCode`);
+
+    if (result.recordset.length > 0) {
+      // Return the voting frozen status
+      return c.json({ success: true, VotingFrozen: result.recordset[0].VotingFrozen });
+    } else {
+      // If the room is not found
+      return c.json({ success: false, message: 'Room not found' }, 404);
+    }
+  } catch (error) {
+    console.error('Error fetching voting freeze status:', error);
+    return c.json({ success: false, message: 'Failed to fetch voting freeze status' }, 500);
   }
 });
 
