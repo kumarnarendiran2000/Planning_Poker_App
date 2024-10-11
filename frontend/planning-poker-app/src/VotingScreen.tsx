@@ -9,12 +9,9 @@ const VotingScreen: React.FC = () => {
   const navigate = useNavigate();
 
   const [textVote, setTextVote] = useState<string>(''); 
-  const [votes, setVotes] = useState<{ MemberName: string, VoteValue: number | string }[]>([]);
   const [revealVotes, setRevealVotes] = useState<boolean>(false);
-  const [castedVote, setCastedVote] = useState<string | number | null>(null); 
-  const [voteStats, setVoteStats] = useState<{ AverageVote: number; MinVote: number; MaxVote: number; TotalVotes: number } | null>(null); 
-  const [error, setError] = useState<string>(''); 
-  const [isRevote, setIsRevote] = useState<boolean>(false); 
+  const [castedVote, setCastedVote] = useState<string | number | null>(null);  
+  const [error, setError] = useState<string>('');  
   const inputRef = useRef<HTMLInputElement | null>(null); 
 
   // Function to cast a vote
@@ -67,53 +64,7 @@ const VotingScreen: React.FC = () => {
 
   // Function to reveal votes
   const handleRevealVotes = async () => {
-    try {
-      const response = await fetch('http://localhost:3000/reveal-votes', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ RoomCode: roomCode }),
-      });
-      const data = await response.json();
-      if (data.success) {
-        setRevealVotes(true);
-        setVotes(data.votes);
-        const statsResponse = await fetch(`http://localhost:3000/voting-stats?RoomCode=${roomCode}`);
-        const statsData = await statsResponse.json();
-        if (statsData.success) {
-          setVoteStats(statsData.stats);
-        }
-      } else {
-        console.error('Failed to reveal votes:', data.message);
-      }
-    } catch (error) {
-      console.error('Error revealing votes:', error);
-    }
-  };
-
-  // Function to handle revote (for Scrum Master only)
-  const handleRevote = async () => {
-    try {
-      const response = await fetch('http://localhost:3000/revote', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ RoomCode: roomCode }),
-      });
-      const data = await response.json();
-      if (data.success) {
-        // Reset state for revote
-        setRevealVotes(false);
-        setVotes([]);
-        setCastedVote(null);
-        setVoteStats(null);
-        
-        // Redirect back to the voting screen for Scrum Master to see the "Reveal Votes" button again
-        navigate(`/voting/${roomCode}`, { state: { isScrumMaster, memberName } });
-      } else {
-        console.error('Failed to initiate revote:', data.message);
-      }
-    } catch (error) {
-      console.error('Error initiating revote:', error);
-    }
+    setRevealVotes(true);
   };
 
   // Poll the backend to check if the session is frozen and redirect members to results page if votes are revealed
@@ -134,37 +85,13 @@ const VotingScreen: React.FC = () => {
     return () => clearInterval(intervalId); // Cleanup on unmount
   }, [roomCode]);
 
-  // Poll for revote status for Scrum Master and members
-  useEffect(() => {
-    const intervalId = setInterval(async () => {
-      try {
-        const response = await fetch(`http://localhost:3000/revote-status?RoomCode=${roomCode}`);
-        const data = await response.json();
-        if (data.success && data.isRevote) {
-          setIsRevote(true); 
-        }
-      } catch (error) {
-        console.error('Failed to fetch revote status:', error);
-      }
-    }, 2000);
-
-    return () => clearInterval(intervalId); // Cleanup on unmount
-  }, [roomCode]);
-
   // Redirect members to results page once votes are revealed
   useEffect(() => {
-    if (revealVotes && !isScrumMaster) {
+    if (revealVotes) {
       // Only redirect members, Scrum Master will stay on the voting screen
-      navigate(`/results/${roomCode}`, { state: { votes, voteStats, memberName } });
+      navigate(`/results/${roomCode}`, { state: { memberName, isScrumMaster } });
     }
-  }, [revealVotes, navigate, roomCode, votes, voteStats, memberName, isScrumMaster]);
-
-  // Redirect Scrum Master back to the voting screen after revote is initiated
-  useEffect(() => {
-    if (isRevote && isScrumMaster) {
-      navigate(`/voting/${roomCode}`, { state: { isScrumMaster, memberName } });
-    }
-  }, [isRevote, navigate, roomCode, isScrumMaster, memberName]);
+  }, [revealVotes, navigate, roomCode, memberName, isScrumMaster]);
 
   return (
     <div className="flex flex-col items-center justify-center h-screen bg-gray-50">
@@ -176,17 +103,15 @@ const VotingScreen: React.FC = () => {
           <p className="text-blue-500 mb-4 text-center">You are a Member: {memberName}</p>
         )}
 
-        {!revealVotes ? (
+        {!revealVotes && (
           <div className="mb-6">
             {isScrumMaster ? (
-              <>
-                <button
-                  onClick={handleRevealVotes}
-                  className="bg-blue-500 hover:bg-blue-600 text-white py-3 px-4 w-full rounded transition duration-300"
-                >
-                  Reveal Votes
-                </button>
-              </>
+              <button
+                onClick={handleRevealVotes}
+                className="bg-blue-500 hover:bg-blue-600 text-white py-3 px-4 w-full rounded transition duration-300"
+              >
+                Reveal Votes
+              </button>
             ) : (
               <div className="space-y-4">
                 <h2 className="text-xl font-semibold mb-4 text-gray-700">Cast Your Vote</h2>
@@ -220,32 +145,6 @@ const VotingScreen: React.FC = () => {
                 {error && <p className="text-red-500">{error}</p>}
                 {castedVote && <p className="text-green-500 font-semibold mt-2">You voted: {castedVote}</p>}
               </div>
-            )}
-          </div>
-        ) : (
-          <div className="bg-gray-100 p-6 rounded-lg">
-            <h2 className="text-xl font-semibold mb-4 text-gray-700">Votes</h2>
-            <ul className="space-y-2">
-              {votes.map((v, index) => (
-                <li key={index} className="text-lg text-gray-800">{v.MemberName}: {v.VoteValue}</li>
-              ))}
-            </ul>
-            {voteStats && (
-              <div className="mt-4 bg-gray-100 p-4 rounded">
-                <h2 className="text-xl font-semibold mb-2">Voting Statistics</h2>
-                <p>Average Vote: {voteStats.AverageVote}</p>
-                <p>Minimum Vote: {voteStats.MinVote}</p>
-                <p>Maximum Vote: {voteStats.MaxVote}</p>
-                <p>Total Votes: {voteStats.TotalVotes}</p>
-              </div>
-            )}
-            {isScrumMaster && (
-              <button
-                onClick={handleRevote}
-                className="bg-red-500 hover:bg-red-600 text-white py-3 px-4 w-full rounded transition duration-300 mt-4"
-              >
-                Revote
-              </button>
             )}
           </div>
         )}
