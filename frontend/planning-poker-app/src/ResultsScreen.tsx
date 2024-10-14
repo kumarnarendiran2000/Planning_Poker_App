@@ -110,12 +110,16 @@ const ResultsScreen: React.FC = () => {
   }, [isRevote, navigate, roomCode, isScrumMaster, memberName]);
 
   return (
-    <div className="flex flex-col items-center justify-center h-screen bg-gray-50">
-      <div className="bg-white shadow-lg rounded-lg p-6 w-full max-w-2xl">
-        <h1 className="text-3xl font-bold text-center mb-6 text-gray-800">Voting Results for Room: {roomCode}</h1>
+    <div className="flex flex-col items-center justify-center h-screen bg-gray-100">
+      <div className="bg-white shadow-lg rounded-lg p-8 w-full max-w-3xl">
+        <h1 className="text-4xl font-bold text-center mb-8">Voting Results</h1>
+        <h2 className="text-2xl font-semibold mb-4 text-gray-700">Room Code: {roomCode}</h2>
         
-        {/* Member Name at the Top */}
-        {!isScrumMaster && <p className="text-blue-500 mb-4 text-center">You are a Member: {memberName}</p>}
+        {!isScrumMaster ? (
+          <p className="text-lg mb-6">You are a Member: <strong>{memberName}</strong></p>
+        ):( 
+          <p className="text-lg mb-6">You are <strong>{memberName}</strong></p>
+        )}
 
         {loading ? (
           <p className="text-gray-500">Loading results...</p>
@@ -123,40 +127,44 @@ const ResultsScreen: React.FC = () => {
           <p className="text-red-500">{error}</p>
         ) : (
           <>
-            <div className="bg-gray-100 p-6 rounded-lg">
-              <h2 className="text-xl font-semibold mb-4 text-gray-700">Votes</h2>
+            {/* Votes Section */}
+            <div className="bg-green-50 p-6 rounded-lg shadow-md mb-6">
+              <h2 className="text-2xl font-semibold mb-4">Member Votes:</h2>
               {votes.length > 0 ? (
-                <ul className="space-y-2">
+                <ul className="space-y-4">
                   {votes.map((v: Vote, index) => (
-                    <li key={index} className="text-lg text-gray-800">
-                      {v.MemberName}: {v.VoteValue}
+                    <li key={index} className="text-xl text-gray-800">
+                      <span className="font-semibold">{v.MemberName}</span>: {v.VoteValue}
                     </li>
                   ))}
                 </ul>
               ) : (
-                <p className="text-gray-500">No votes available.</p>
+                <p className="text-gray-500 font-bold text-2xl">No votes available.</p>
               )}
             </div>
 
+            {/* Voting Statistics Section */}
             {voteStats && (
-              <div className="mt-4 bg-gray-100 p-4 rounded">
-                <h2 className="text-xl font-semibold mb-2">Voting Statistics</h2>
-                <p>Average Vote: {voteStats.AverageVote}</p>
-                <p>Minimum Vote: {voteStats.MinVote}</p>
-                <p>Maximum Vote: {voteStats.MaxVote}</p>
-                <p>Total Votes: {voteStats.TotalVotes}</p>
+              <div className="mt-4 bg-yellow-50 p-6 rounded-lg shadow-md">
+                <h2 className="text-2xl font-semibold mb-4">Voting Statistics:</h2>
+                <div className="text-lg text-gray-700 space-y-2">
+                  <p><span className="font-bold">Average Vote:</span> {voteStats.AverageVote}</p>
+                  <p><span className="font-bold">Minimum Vote:</span> {voteStats.MinVote}</p>
+                  <p><span className="font-bold">Maximum Vote:</span> {voteStats.MaxVote}</p>
+                  <p><span className="font-bold">Total Votes:</span> {voteStats.TotalVotes}</p>
+                </div>
               </div>
             )}
 
+            {/* Revote Button */}
             {isScrumMaster && (
               <button
                 onClick={handleRevote}
-                className="bg-red-500 hover:bg-red-600 text-white py-3 px-4 w-full rounded transition duration-300 mt-4"
+                className="mt-8 bg-red-600 hover:bg-red-700 text-white py-3 px-6 rounded-lg transition duration-300 shadow-md hover:shadow-lg transform hover:scale-105"
               >
-                Revote
+                Start a New Revote
               </button>
             )}
-
           </>
         )}
       </div>

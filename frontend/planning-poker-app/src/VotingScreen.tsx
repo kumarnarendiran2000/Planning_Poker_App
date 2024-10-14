@@ -104,12 +104,13 @@ const VotingScreen: React.FC = () => {
 
   return (
     <div className="flex flex-col items-center justify-center h-screen bg-gray-50">
-      <div className="bg-white shadow-lg rounded-lg p-6 w-full max-w-2xl">
-        <h1 className="text-3xl font-bold text-center mb-6 text-gray-800">Voting Room: {roomCode}</h1>
+      <div className="bg-white shadow-lg rounded-lg p-8 w-full max-w-2xl">
+        <h1 className="text-4xl font-bold text-center mb-8">Voting Room: {roomCode}</h1>
+
         {isScrumMaster ? (
-          <p className="text-green-500 mb-4 text-center">You are the Scrum Master</p>
+          <p className="text-xl text-green-500 mb-6 text-center">You are the Scrum Master</p>
         ) : (
-          <p className="text-blue-500 mb-4 text-center">You are a Member: {memberName}</p>
+          <p className="text-xl text-blue-500 mb-6 text-center">You are a Member: {memberName}</p>
         )}
 
         {!revealVotes && (
@@ -117,19 +118,21 @@ const VotingScreen: React.FC = () => {
             {isScrumMaster ? (
               <button
                 onClick={handleRevealVotes}
-                className="bg-blue-500 hover:bg-blue-600 text-white py-3 px-4 w-full rounded transition duration-300"
+                className="bg-blue-600 hover:bg-blue-700 text-white py-3 px-6 w-full rounded-lg transition duration-300 shadow-md"
               >
                 Reveal Votes
               </button>
             ) : (
               <div className="space-y-4">
-                <h2 className="text-xl font-semibold mb-4 text-gray-700">Cast Your Vote</h2>
-                <div className="flex justify-around">
+                <h2 className="text-2xl font-semibold mb-4 text-gray-700">Cast Your Vote</h2>
+                <div className="flex justify-around space-x-4">
                   {[1, 2, 3, 5, 8, 13].map((value) => (
                     <button
                       key={value}
                       onClick={() => handleVote(value)}
-                      className={`py-3 px-5 rounded transition duration-300 ${castedVote === value ? 'bg-blue-500 text-white' : 'bg-gray-200 hover:bg-gray-300'}`}
+                      className={`py-3 px-5 rounded-lg transition duration-300 ${
+                        castedVote === value ? 'bg-blue-500 text-white' : 'bg-gray-200 hover:bg-gray-300'
+                      }`}
                     >
                       {value}
                     </button>
@@ -142,17 +145,17 @@ const VotingScreen: React.FC = () => {
                     value={textVote}
                     onChange={(e) => setTextVote(e.target.value)}
                     placeholder="Enter text vote"
-                    className="border border-gray-300 py-2 px-4 rounded focus:outline-none focus:border-blue-500"
+                    className="border border-gray-300 py-3 px-4 rounded-lg w-full focus:outline-none focus:border-blue-500"
                   />
                   <button
                     onClick={handleTextVote}
-                    className="bg-green-500 hover:bg-green-600 text-white py-2 px-4 rounded transition duration-300"
+                    className="bg-green-600 hover:bg-green-700 text-white py-2 px-4 text-sm rounded-md transition duration-300 whitespace-nowrap"
                   >
                     Submit Text Vote
                   </button>
                 </div>
-                {error && <p className="text-red-500">{error}</p>}
-                {castedVote && <p className="text-green-500 font-semibold mt-2">You voted: {castedVote}</p>}
+                {error && <p className="text-red-500 mt-2 text-center">{error}</p>}
+                {castedVote && <p className="text-green-500 font-semibold mt-2 text-center">You voted: {castedVote}</p>}
               </div>
             )}
           </div>
