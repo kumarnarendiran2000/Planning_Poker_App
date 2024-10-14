@@ -95,13 +95,10 @@ app.post('/cast-vote', async (c) => {
   const pool = await connectToDatabase();
 
   try {
-    console.log('Received vote:', { RoomCode, MemberName, VoteValue });
 
     const roomResult = await pool.request()
       .input('RoomCode', sql.NVarChar(50), RoomCode)
       .query(`SELECT RoomId FROM Rooms WHERE RoomCode = @RoomCode`);
-    
-    console.log('Room Result:', roomResult.recordset);
 
     if (roomResult.recordset.length === 0) {
       return c.json({ success: false, message: 'Room not found' }, 404);
@@ -113,8 +110,6 @@ app.post('/cast-vote', async (c) => {
       .input('RoomId', sql.UniqueIdentifier, RoomId)
       .input('MemberName', sql.NVarChar(100), MemberName)
       .query(`SELECT MemberId FROM Members WHERE RoomId = @RoomId AND MemberName = @MemberName`);
-    
-    console.log('Member Result:', memberResult.recordset);
 
     if (memberResult.recordset.length === 0) {
       return c.json({ success: false, message: 'Member not found in the room' }, 404);
@@ -128,7 +123,6 @@ app.post('/cast-vote', async (c) => {
       .input('MemberId', sql.UniqueIdentifier, MemberId)
       .query(`SELECT VoteId FROM Votes WHERE RoomId = @RoomId AND MemberId = @MemberId`);
     
-    console.log('Vote Result:', voteResult.recordset);
 
     if (voteResult.recordset.length > 0) {
       const VoteId = voteResult.recordset[0].VoteId;
@@ -136,7 +130,6 @@ app.post('/cast-vote', async (c) => {
         .input('VoteId', sql.UniqueIdentifier, VoteId)
         .input('VoteValue', sql.Int, VoteValue)
         .query(`UPDATE Votes SET VoteValue = @VoteValue WHERE VoteId = @VoteId`);
-      console.log('Vote Updated:', { VoteId, VoteValue });
     } else {
       const VoteId = uuidv4();
       await pool.request()
@@ -146,7 +139,6 @@ app.post('/cast-vote', async (c) => {
         .input('VoteValue', sql.Int, VoteValue)
         .query(`INSERT INTO Votes (VoteId, RoomId, MemberId, VoteValue) 
                 VALUES (@VoteId, @RoomId, @MemberId, @VoteValue)`);
-      console.log('Vote Inserted:', { VoteId, RoomId, MemberId, VoteValue });
     }
 
     return c.json({ success: true, message: 'Vote cast successfully' });

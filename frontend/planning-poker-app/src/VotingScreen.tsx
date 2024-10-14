@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useLocation, useParams, useNavigate } from 'react-router-dom';
+import axios from 'axios'; // Import Axios
 
 const VotingScreen: React.FC = () => {
   const { roomCode } = useParams<{ roomCode: string }>();
@@ -14,15 +15,23 @@ const VotingScreen: React.FC = () => {
   const [error, setError] = useState<string>('');  
   const inputRef = useRef<HTMLInputElement | null>(null); 
 
+  useEffect(() => {
+    if (isScrumMaster) {
+      document.title = `Planning Poker - Scrum Master`;
+    } else {
+      document.title = `Planning Poker - Member: ${memberName}`;
+    }
+  }, [isScrumMaster, memberName]);
+
   // Function to cast a vote
   const handleVote = async (voteValue: number) => {
     try {
-      const response = await fetch('http://localhost:3000/cast-vote', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ RoomCode: roomCode, MemberName: memberName, VoteValue: voteValue }),
+      const response = await axios.post('http://localhost:3000/cast-vote', {
+        RoomCode: roomCode,
+        MemberName: memberName,
+        VoteValue: voteValue,
       });
-      const data = await response.json();
+      const data = response.data;
       if (data.success) {
         setCastedVote(voteValue); 
         setError('');
@@ -42,15 +51,14 @@ const VotingScreen: React.FC = () => {
     }
 
     try {
-      const voteValue = textVote;
-      const response = await fetch('http://localhost:3000/cast-vote', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ RoomCode: roomCode, MemberName: memberName, VoteValue: voteValue }),
+      const response = await axios.post('http://localhost:3000/cast-vote', {
+        RoomCode: roomCode,
+        MemberName: memberName,
+        VoteValue: textVote,
       });
-      const data = await response.json();
+      const data = response.data;
       if (data.success) {
-        setCastedVote(voteValue);
+        setCastedVote(textVote);
         setTextVote(''); 
         inputRef.current?.blur();
         setError('');
@@ -71,9 +79,10 @@ const VotingScreen: React.FC = () => {
   useEffect(() => {
     const intervalId = setInterval(async () => {
       try {
-        const response = await fetch(`http://localhost:3000/voting-freeze-status?RoomCode=${roomCode}`);
-        const data = await response.json();
-
+        const response = await axios.get('http://localhost:3000/voting-freeze-status', {
+          params: { RoomCode: roomCode },
+        });
+        const data = response.data;
         if (data.success && data.VotingFrozen) {
           setRevealVotes(true); // Update revealVotes to trigger useEffect below
         }

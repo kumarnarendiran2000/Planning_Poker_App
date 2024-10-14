@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, useParams, useNavigate } from 'react-router-dom';
+import axios from 'axios'; // Import Axios
 
 const RoomLobby: React.FC = () => {
   const { roomCode } = useParams<{ roomCode: string }>();
@@ -12,12 +13,22 @@ const RoomLobby: React.FC = () => {
   const [votingStarted, setVotingStarted] = useState<boolean>(false);
 
   useEffect(() => {
+    if (isScrumMaster) {
+      document.title = `Planning Poker - Scrum Master`;
+    } else {
+      document.title = `Planning Poker - Member: ${memberName}`;
+    }
+  }, [isScrumMaster, memberName]);
+
+  useEffect(() => {
     if (!roomCode) return;
 
     const fetchMembers = async () => {
       try {
-        const response = await fetch(`http://localhost:3000/room-members?RoomCode=${roomCode}`);
-        const data = await response.json();
+        const response = await axios.get(`http://localhost:3000/room-members`, {
+          params: { RoomCode: roomCode },
+        });
+        const data = response.data;
         if (data.success) {
           setMembers(data.members);
         }
@@ -36,8 +47,10 @@ const RoomLobby: React.FC = () => {
 
     const pollVotingStatus = async () => {
       try {
-        const response = await fetch(`http://localhost:3000/voting-status?RoomCode=${roomCode}`);
-        const data = await response.json();
+        const response = await axios.get(`http://localhost:3000/voting-status`, {
+          params: { RoomCode: roomCode },
+        });
+        const data = response.data;
         if (data.votingStarted) {
           setVotingStarted(true);
         }
@@ -59,12 +72,10 @@ const RoomLobby: React.FC = () => {
 
   const handleStartVoting = async () => {
     try {
-      const response = await fetch('http://localhost:3000/start-voting', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ RoomCode: roomCode }),
+      const response = await axios.post('http://localhost:3000/start-voting', {
+        RoomCode: roomCode,
       });
-      const data = await response.json();
+      const data = response.data;
       if (data.success) {
         navigate(`/voting/${roomCode}`, { state: { isScrumMaster, memberName } });
       } else {

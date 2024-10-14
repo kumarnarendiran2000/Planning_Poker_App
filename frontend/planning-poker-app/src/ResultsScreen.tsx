@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, useParams, useNavigate } from 'react-router-dom';
+import axios from 'axios'; // Import Axios
 
 // Define the type for a vote
 interface Vote {
@@ -20,15 +21,21 @@ const ResultsScreen: React.FC = () => {
   const [error, setError] = useState<string>(''); 
   const [isRevote, setIsRevote] = useState<boolean>(false); 
 
+  useEffect(() => {
+    if (isScrumMaster) {
+      document.title = `Planning Poker - Scrum Master`;
+    } else {
+      document.title = `Planning Poker - Member: ${memberName}`;
+    }
+  }, [isScrumMaster, memberName]);
+
   // Function to handle revote (for Scrum Master only)
   const handleRevote = async () => {
     try {
-      const response = await fetch('http://localhost:3000/revote', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ RoomCode: roomCode }),
+      const response = await axios.post('http://localhost:3000/revote', {
+        RoomCode: roomCode,
       });
-      const data = await response.json();
+      const data = response.data;
       if (data.success) {
         // Reset state for revote
         setVotes([]);
@@ -48,23 +55,21 @@ const ResultsScreen: React.FC = () => {
   useEffect(() => {
     const fetchResults = async () => {
       try {
-        setLoading(true); 
-        setError(''); 
+        setLoading(true);
+        setError('');
 
-        // Fetch votes
-        const response = await fetch(`http://localhost:3000/reveal-votes`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ RoomCode: roomCode }),
+        const response = await axios.post('http://localhost:3000/reveal-votes', {
+          RoomCode: roomCode,
         });
 
-        const data = await response.json();
+        const data = response.data;
         if (data.success && data.votes.length > 0) {
           setVotes(data.votes);
-
           // Fetch voting statistics
-          const statsResponse = await fetch(`http://localhost:3000/voting-stats?RoomCode=${roomCode}`);
-          const statsData = await statsResponse.json();
+          const statsResponse = await axios.get('http://localhost:3000/voting-stats', {
+            params: { RoomCode: roomCode },
+          });
+          const statsData = statsResponse.data;
           setVoteStats(statsData.stats);
         }
       } catch (error) {
@@ -82,18 +87,19 @@ const ResultsScreen: React.FC = () => {
   useEffect(() => {
     const intervalId = setInterval(async () => {
       try {
-        const response = await fetch(`http://localhost:3000/revote-status?RoomCode=${roomCode}`);
-        const data = await response.json();
-        console.log('Revote Status Response:', data);
+        const response = await axios.get('http://localhost:3000/revote-status', {
+          params: { RoomCode: roomCode },
+        });
+        const data = response.data;
         if (data.success && data.isRevote) {
-          setIsRevote(true); 
+          setIsRevote(true);
         }
       } catch (error) {
         console.error('Failed to fetch revote status:', error);
       }
     }, 2000); 
 
-    return () => clearInterval(intervalId); 
+    return () => clearInterval(intervalId);
   }, [roomCode]);
 
   // Redirect members to voting screen once revote is initiated

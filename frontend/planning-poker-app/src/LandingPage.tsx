@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import axios from 'axios'; // Import Axios
 
 const LandingPage: React.FC = () => {
   const [roomCode, setRoomCode] = useState('');
@@ -7,13 +8,15 @@ const LandingPage: React.FC = () => {
   const [error, setError] = useState({ roomCode: '', memberName: '', general: '' });
   const navigate = useNavigate();
 
+  // Set the default title
+  useEffect(() => {
+    document.title = 'Planning Poker';
+  }, []);
+
   const handleCreateRoom = async () => {
     try {
-      const response = await fetch('http://localhost:3000/create-room', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-      });
-      const data = await response.json();
+      const response = await axios.post('http://localhost:3000/create-room');
+      const data = response.data;
       if (data.success) {
         navigate(`/room/${data.RoomCode}`, { state: { isScrumMaster: true, memberName: 'Scrum Master' } });
       }
@@ -43,12 +46,11 @@ const LandingPage: React.FC = () => {
 
     if (roomCode && memberName) {
       try {
-        const response = await fetch('http://localhost:3000/join-room', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ RoomCode: roomCode, MemberName: memberName }),
+        const response = await axios.post('http://localhost:3000/join-room', {
+          RoomCode: roomCode,
+          MemberName: memberName,
         });
-        const data = await response.json();
+        const data = response.data;
         if (data.success) {
           navigate(`/room/${roomCode}`, { state: { memberName } });
         } else {
