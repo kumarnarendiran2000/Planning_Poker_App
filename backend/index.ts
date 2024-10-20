@@ -88,6 +88,64 @@ app.post('/start-voting', async (c) => {
   }
 });
 
+app.post('/mark-done', async (c) => {
+  const { RoomCode, MemberName } = await c.req.json();
+  const pool = await connectToDatabase();
+
+  try {
+    // Fetch the RoomId and MemberId
+    const memberResult = await pool.request()
+      .input('RoomCode', sql.NVarChar(50), RoomCode)
+      .input('MemberName', sql.NVarChar(50), MemberName)
+      .query(`
+        SELECT Members.MemberId
+        FROM Members 
+        INNER JOIN Rooms ON Rooms.RoomId = Members.RoomId
+        WHERE Rooms.RoomCode = @RoomCode AND Members.MemberName = @MemberName
+      `);
+
+    if (memberResult.recordset.length === 0) {
+      return c.json({ success: false, message: 'Member not found' }, 404);
+    }
+
+    const MemberId = memberResult.recordset[0].MemberId;
+
+    // Update the member's "done" status in the database
+    await pool.request()
+      .input('MemberId', sql.UniqueIdentifier, MemberId)
+      .query(`UPDATE Members SET IsDone = 1 WHERE MemberId = @MemberId`);
+
+    return c.json({ success: true });
+  } catch (error) {
+    console.error('Error marking voting as done:', error);
+    return c.json({ success: false, message: 'Failed to mark voting as done' }, 500);
+  }
+});
+
+app.get('/members-done-status', async (c) => {
+  const { RoomCode } = c.req.query();
+  const pool = await connectToDatabase();
+
+  try {
+    // Fetch all members and their done status
+    const membersResult = await pool.request()
+      .input('RoomCode', sql.NVarChar(50), RoomCode)
+      .query(`
+        SELECT Members.MemberName, Members.IsDone
+        FROM Members
+        INNER JOIN Rooms ON Rooms.RoomId = Members.RoomId
+        WHERE Rooms.RoomCode = @RoomCode
+      `);
+
+    return c.json({ success: true, members: membersResult.recordset });
+  } catch (error) {
+    console.error('Error fetching members done status:', error);
+    return c.json({ success: false, message: 'Failed to fetch members done status' }, 500);
+  }
+});
+
+
+
 
 
 app.post('/cast-vote', async (c) => {
@@ -315,6 +373,10 @@ app.post('/revote', async (c) => {
     await pool.request()
       .input('RoomId', sql.UniqueIdentifier, RoomId)
       .query(`UPDATE Rooms SET VotingStarted = 1, VotingFrozen = 0, IsRevote = 1 WHERE RoomId = @RoomId`);
+
+    await pool.request()
+    .input('RoomId', sql.UniqueIdentifier, RoomId)
+    .query(`UPDATE Members SET IsDone = 0 WHERE RoomId = @RoomId`);
 
     return c.json({ success: true });
   } catch (error) {

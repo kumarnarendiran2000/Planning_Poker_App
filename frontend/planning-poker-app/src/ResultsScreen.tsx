@@ -118,7 +118,7 @@ const ResultsScreen: React.FC = () => {
         {!isScrumMaster ? (
           <p className="text-lg mb-6">You are a Member: <strong>{memberName}</strong></p>
         ):( 
-          <p className="text-lg mb-6">You are <strong>{memberName}</strong></p>
+          <p className="text-lg mb-6">You are the <strong>{memberName}</strong></p>
         )}
 
         {loading ? (
