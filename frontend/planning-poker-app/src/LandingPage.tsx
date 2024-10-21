@@ -64,53 +64,51 @@ const LandingPage: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col items-center justify-center h-screen bg-gray-50">
-      <div className="bg-white shadow-lg rounded-lg p-6 max-w-md w-full">
-        <h1 className="text-4xl font-bold text-center mb-8">Planning Poker</h1>
+    <div className="flex flex-col items-center justify-center h-screen bg-gray-100">
+      <div className="bg-white shadow-lg rounded-lg p-8 max-w-md w-full">
+        <h1 className="text-4xl font-extrabold text-center text-blue-600 mb-10">PLANNING POKER</h1>
 
         {error.general && <p className="text-red-500 text-center mb-6">{error.general}</p>}
 
-        <div className="flex flex-col space-y-4">
+        <div className="flex flex-col space-y-6">
           <button
             onClick={handleCreateRoom}
-            className="bg-blue-600 hover:bg-blue-700 text-white py-3 px-4 rounded-lg transition duration-300 shadow-md"
+            className="bg-blue-600 hover:bg-blue-700 text-white py-3 px-5 text-lg rounded-lg transition duration-300 shadow-lg"
           >
             Create Room
           </button>
 
-          {/* Room Code Input */}
           <div className="relative">
-            <label className="block text-lg font-medium text-gray-700 mb-2">Room Code <span className="text-red-500">*</span></label>
+            <label className="block text-xl font-semibold text-gray-800 mb-2">Room Code <span className="text-red-500">*</span></label>
             <input
               type="text"
               placeholder="Enter Room Code"
               value={roomCode}
               onChange={(e) => setRoomCode(e.target.value)}
-              className={`border border-gray-300 py-3 px-4 rounded-lg w-full ${
-                error.roomCode ? 'border-red-500' : ''
-              } focus:outline-none focus:border-blue-500`}
+              className={`border border-gray-400 py-3 px-5 rounded-lg w-full text-lg focus:outline-none ${
+                error.roomCode ? 'border-red-500' : 'focus:border-blue-500'
+              }`}
             />
             {error.roomCode && <p className="text-red-500 text-sm mt-2">{error.roomCode}</p>}
           </div>
 
-          {/* Member Name Input */}
           <div className="relative">
-            <label className="block text-lg font-medium text-gray-700 mb-2">Your Name <span className="text-red-500">*</span></label>
+            <label className="block text-xl font-semibold text-gray-800 mb-2">Your Name <span className="text-red-500">*</span></label>
             <input
               type="text"
               placeholder="Enter Your Name"
               value={memberName}
               onChange={(e) => setMemberName(e.target.value)}
-              className={`border border-gray-300 py-3 px-4 rounded-lg w-full ${
-                error.memberName ? 'border-red-500' : ''
-              } focus:outline-none focus:border-blue-500`}
+              className={`border border-gray-400 py-3 px-5 rounded-lg w-full text-lg focus:outline-none ${
+                error.memberName ? 'border-red-500' : 'focus:border-blue-500'
+              }`}
             />
             {error.memberName && <p className="text-red-500 text-sm mt-2">{error.memberName}</p>}
           </div>
 
           <button
             onClick={handleJoinRoom}
-            className="bg-green-500 hover:bg-green-600 text-white py-3 px-4 rounded transition duration-300"
+            className="bg-green-500 hover:bg-green-600 text-white py-3 px-5 text-lg rounded-lg transition duration-300 shadow-lg"
           >
             Join Room
           </button>

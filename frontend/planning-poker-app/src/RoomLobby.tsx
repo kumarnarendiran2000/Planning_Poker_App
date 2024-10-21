@@ -87,31 +87,37 @@ const RoomLobby: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col items-center justify-center h-screen bg-gray-50">
+    <div className="flex flex-col items-center justify-center h-screen bg-gray-100">
       <div className="bg-white shadow-lg rounded-lg p-8 w-full max-w-xl">
         <h1 className="text-4xl font-bold text-center mb-8">Room Code: {roomCode}</h1>
 
-        <div className="bg-gray-100 p-6 rounded-lg shadow-md mb-6">
-          <h2 className="text-2xl font-semibold mb-4 text-gray-800">Members in Room:</h2>
-          <ul className="space-y-4">
+        <div className="bg-gray-100 p-6 rounded-lg shadow-md mb-8">
+          <h2 className="text-3xl font-semibold text-gray-700 mb-6 text-center">Members in Room</h2>
+          <ul className="space-y-3">
             {members.map((member, index) => (
-              <li key={index} className="text-lg text-gray-800">{member}</li>
+              <li
+                key={index}
+                className="flex justify-between items-center bg-white p-4 rounded-lg shadow-sm"
+              >
+                <span className="text-lg font-medium text-gray-800">{member}</span>
+                {/* You can add an icon or status indicator here */}
+              </li>
             ))}
           </ul>
         </div>
 
         {isScrumMaster ? (
           <div className="text-center">
-            <p className="text-green-500 mb-4 text-xl ">You are the Scrum Master</p>
+            <p className="text-xl font-semibold text-green-500 mb-6">You are the Scrum Master</p>
             <button
               onClick={handleStartVoting}
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 px-6 rounded-lg transition duration-300 shadow-md"
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 px-6 rounded-lg transition duration-300 shadow-lg"
             >
               Start Voting
             </button>
           </div>
         ) : (
-          <p className="text-xl text-blue-600 text-center">You are a member: {memberName}</p>
+          <p className="text-xl text-blue-600 font-semibold text-center">You are a Member: {memberName}</p>
         )}
       </div>
     </div>
