@@ -60,6 +60,11 @@ const VotingScreen: React.FC = () => {
       return;
     }
 
+    if (!/^\d+$/.test(textVote)) {
+      setError('Please enter a valid number.');
+      return;
+    }
+
     try {
       const response = await axios.post('http://localhost:3000/cast-vote', {
         RoomCode: roomCode,
@@ -144,7 +149,6 @@ useEffect(() => {
         setMembers(updatedMembers);
 
         // Fixing the property reference here
-        //const allDone = updatedMembers.every((member: Member) => member.IsDone);
         const allDone = updatedMembers.every((member: { isDone: boolean }) => member.isDone);
         setAllMembersDone(allDone);
       } else {
@@ -159,6 +163,24 @@ useEffect(() => {
   return () => clearInterval(interval);
 }, [roomCode]);
 
+const handleUnmarkAsDone = async () => {
+  try {
+    const response = await axios.post('http://localhost:3000/unmark-done', {
+      RoomCode: roomCode,
+      MemberName: memberName,
+    });
+
+    if (response.data.success) {
+      setIsDone(false);  // Update the frontend state to reflect the unmarked status
+      setError('');      // Clear any errors
+    } else {
+      setError('Failed to unmark as done. Please try again.');
+    }
+  } catch (error) {
+    console.error('Error unmarking as done:', error);
+    setError('Failed to unmark as done. Please try again.');
+  }
+};
 
   return (
     <div className="flex flex-col items-center justify-center h-screen bg-gray-50">
@@ -173,25 +195,34 @@ useEffect(() => {
 
         {!revealVotes && (
           <div className="mb-6">
-            {(isScrumMaster && allMembersDone) && (
+            {isScrumMaster && (
               <button
                 onClick={handleRevealVotes}
-                className="bg-blue-600 hover:bg-blue-700 text-white py-3 px-6 w-full rounded-lg transition duration-300 shadow-md"
+                disabled={!allMembersDone} 
+                className={`py-3 px-6 w-full rounded-lg transition duration-300 shadow-md 
+                  ${!allMembersDone ? 'bg-gray-300 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 text-white '}`}
               >
                 Reveal Votes
               </button>
             )}
             {isScrumMaster && (
-              <div className="bg-gray-100 p-4 rounded-lg mb-6">
-              <h2 className="text-xl font-semibold mb-4 text-gray-700">Members Done Status</h2>
-              <ul className="space-y-2">
+              <div className="bg-gray-100 p-6 rounded-lg mb-6 shadow-md mt-8"> {/* Added margin-top (mt-8) */}
+              <h2 className="text-2xl font-bold mb-4 text-gray-700">Members Done Status</h2>
+              
+              <ul className="space-y-3">
                 {members.map((member, index) => (
-                  <li key={index} className="flex justify-between items-center text-lg text-gray-800">
-                    <span>{member.name}</span>
+                  <li
+                    key={index}
+                    className="flex justify-between items-center bg-white p-3 rounded-lg shadow-sm"
+                  >
+                    {/* Member name */}
+                    <span className="text-lg font-medium text-gray-800">{member.name}</span>
+            
+                    {/* Status with simple color coding */}
                     {member.isDone ? (
-                      <span className="text-green-500 font-bold">Done</span>
+                      <span className="text-green-600 font-bold">Done</span>
                     ) : (
-                      <span className="text-red-500">Not Done</span>
+                      <span className="text-red-600 font-bold">Not Done</span>
                     )}
                   </li>
                 ))}
@@ -206,9 +237,10 @@ useEffect(() => {
                     <button
                       key={value}
                       onClick={() => handleVote(value)}
-                      className={`py-3 px-5 rounded-lg transition duration-300 ${
-                        castedVote === value ? 'bg-blue-500 text-white' : 'bg-gray-200 hover:bg-gray-300'
-                      }`}
+                      disabled={isDone} // Disable when done
+                      className={`py-3 px-5 rounded-lg transition duration-300 text-2xl font-semibold
+                      ${castedVote === value ? 'bg-blue-500 text-white' : 'bg-gray-300 hover:bg-gray-300'
+                      }${isDone ? 'bg-gray-200 cursor-not-allowed' : ''}`}
                     >
                       {value}
                     </button>
@@ -220,35 +252,56 @@ useEffect(() => {
                     type="text"
                     value={textVote}
                     onChange={(e) => setTextVote(e.target.value)}
-                    placeholder="Enter text vote"
-                    className={`border-4 py-2 px-4 rounded-lg focus:outline-none transition duration-300 w-full ${
-                      castedVote === textVote ? 'border-blue-600' : 'border-gray-300 focus:border-blue-500'
-                    }`}
+                    disabled={isDone} // Disable when done
+                    placeholder="Enter text vote (only numbers)"
+                    className={`border-4 py-2 px-4 rounded-lg focus:outline-none transition duration-300 w-full text-2xl font-semibold text-center
+                      ${castedVote === textVote ? 'border-blue-600' : 'border-gray-400 focus:border-green-500'}
+                      ${isDone ? 'bg-gray-200 cursor-not-allowed' : ''}`}
                   />
                   <button
                     onClick={handleTextVote}
-                    className="bg-green-500 hover:bg-green-700 text-white py-2 px-4 text-sm rounded-md transition duration-300 whitespace-nowrap"
+                    disabled={isDone} // Disable when done
+                    className={` py-2 px-4 text-sm rounded-md transition duration-300 whitespace-nowrap 
+                      ${isDone ? 'bg-gray-200 cursor-not-allowed' : 'bg-green-500 hover:bg-green-700 text-white'}`}
                   >
                     Submit Text Vote
                   </button>
                 </div>
                 {error && <p className="text-red-500 mt-2 text-center">{error}</p>}
-                {castedVote && <p className="text-green-500 font-semibold mt-2 text-center">You voted: {castedVote}</p>}
+                {castedVote && (
+                  <div className="mt-4 p-2 bg-green-100 rounded-lg shadow-md text-center">
+                    <p className="text-green-700 font-bold text-2xl">
+                      You voted: <span className="text-green-900">{castedVote}</span>
+                    </p>
+                  </div>
+                )}
               </div>
             )}
           </div>
         )}
       </div>
-      <div>
-        {!isScrumMaster && <button
+      <div className="flex flex-col items-center space-y-3 mt-4">
+        {!isScrumMaster && (
+          <button
             onClick={handleMarkAsDone}
-            className="bg-green-500 hover:bg-green-600 text-white py-2 px-4 rounded transition duration-300 my-10"
-            disabled={isDone || !castedVote} // Disable if already done or vote not casted
+            disabled={!castedVote || isDone}  // Disable when no vote casted or already done
+            className={`py-2 px-5 rounded-md transition duration-200 text-base font-medium ${
+              !castedVote || isDone ? 'bg-gray-400 cursor-not-allowed' : 'bg-green-500 hover:bg-green-600 text-white'
+            }`}
           >
-            {isDone ? 'Done' : 'Mark as Done'}
-        </button>
-        }
-      </div>
+            {isDone ? 'Already Done' : 'Mark as Done'}
+          </button>
+        )}
+
+        {isDone && (
+          <button
+            onClick={handleUnmarkAsDone}
+            className="py-2 px-5 rounded-md bg-yellow-400 hover:bg-yellow-500 text-white transition duration-200 text-base font-medium"
+          >
+            Unmark as Done
+          </button>
+        )}
+    </div>
     </div>
   );
 };

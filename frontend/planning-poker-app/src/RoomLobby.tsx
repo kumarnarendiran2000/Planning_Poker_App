@@ -102,7 +102,7 @@ const RoomLobby: React.FC = () => {
 
         {isScrumMaster ? (
           <div className="text-center">
-            <p className="text-green-500 mb-4 text-xl ">You are the Scrum Master!</p>
+            <p className="text-green-500 mb-4 text-xl ">You are the Scrum Master</p>
             <button
               onClick={handleStartVoting}
               className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 px-6 rounded-lg transition duration-300 shadow-md"

@@ -122,6 +122,41 @@ app.post('/mark-done', async (c) => {
   }
 });
 
+// Unmark as Done API
+app.post('/unmark-done', async (c) => {
+  const { RoomCode, MemberName } = await c.req.json();
+  const pool = await connectToDatabase();
+
+  try {
+    // Fetch the RoomId and MemberId
+    const memberResult = await pool.request()
+      .input('RoomCode', sql.NVarChar(50), RoomCode)
+      .input('MemberName', sql.NVarChar(50), MemberName)
+      .query(`
+        SELECT Members.MemberId
+        FROM Members 
+        INNER JOIN Rooms ON Rooms.RoomId = Members.RoomId
+        WHERE Rooms.RoomCode = @RoomCode AND Members.MemberName = @MemberName
+      `);
+
+    if (memberResult.recordset.length === 0) {
+      return c.json({ success: false, message: 'Member not found' }, 404);
+    }
+
+    const MemberId = memberResult.recordset[0].MemberId;
+
+    // Update the member's "done" status in the database (set IsDone to 0)
+    await pool.request()
+      .input('MemberId', sql.UniqueIdentifier, MemberId)
+      .query(`UPDATE Members SET IsDone = 0 WHERE MemberId = @MemberId`);
+
+    return c.json({ success: true });
+  } catch (error) {
+    console.error('Error unmarking as done:', error);
+    return c.json({ success: false, message: 'Failed to unmark as done' }, 500);
+  }
+});
+
 app.get('/members-done-status', async (c) => {
   const { RoomCode } = c.req.query();
   const pool = await connectToDatabase();
@@ -143,10 +178,6 @@ app.get('/members-done-status', async (c) => {
     return c.json({ success: false, message: 'Failed to fetch members done status' }, 500);
   }
 });
-
-
-
-
 
 app.post('/cast-vote', async (c) => {
   const { RoomCode, MemberName, VoteValue } = await c.req.json();
