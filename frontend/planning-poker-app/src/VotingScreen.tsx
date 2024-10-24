@@ -90,7 +90,7 @@ const VotingScreen: React.FC = () => {
   };
 
   useEffect(() => {
-    const fetchCastedVote = async () => {
+    const fetchVoteAndDoneStatus = async () => {
       try {
         const response = await axios.get('http://localhost:3000/get-casted-vote', {
           params: { RoomCode: roomCode, MemberName: memberName },
@@ -108,13 +108,16 @@ const VotingScreen: React.FC = () => {
             setTextVote(voteValue); // Restore text vote
             setCastedVote(voteValue); // Clear static options
           }
+  
+          // Set the done status
+          setIsDone(data.isDone); // Update "done" status from the database
         }
       } catch (error) {
-        console.error('Error fetching the casted vote:', error);
+        console.error('Error fetching the vote and done status:', error);
       }
     };
   
-    fetchCastedVote();
+    fetchVoteAndDoneStatus();
   }, [roomCode, memberName]);
   
   
@@ -144,23 +147,40 @@ const VotingScreen: React.FC = () => {
       navigate(`/results/${roomCode}`, { state: { memberName, isScrumMaster } });
     }
   }, [revealVotes, navigate, roomCode, memberName, isScrumMaster]);
-  
-  // Function to mark voting as done
-const handleMarkAsDone = async () => {
-  try {
-    const response = await axios.post(`http://localhost:3000/mark-done`, {
-      RoomCode: roomCode,
-      MemberName: memberName,
-    });
 
-    if (response.data.success) {
-      // Successfully marked as done, maybe disable the button or show a message
-      setIsDone(true);
+  const handleToggleDone = async () => {
+    if (isDone) {
+      // Call the API to unmark as done
+      try {
+        const response = await axios.post('http://localhost:3000/unmark-done', {
+          RoomCode: roomCode,
+          MemberName: memberName,
+        });
+
+        if (response.data.success) {
+          setIsDone(false);  // Set `isDone` to false
+        } else {
+          console.error('Failed to unmark as done:', response.data.message);
+        }
+      } catch (error) {
+        console.error('Error unmarking as done:', error);
+      }
     } else {
-      console.error('Failed to mark voting as done:', response.data.message);
-    }
-  } catch (error) {
-    console.error('Error marking voting as done:', error);
+      // Call the API to mark as done
+      try {
+        const response = await axios.post('http://localhost:3000/mark-done', {
+          RoomCode: roomCode,
+          MemberName: memberName,
+        });
+
+        if (response.data.success) {
+          setIsDone(true);  // Set `isDone` to true
+        } else {
+          console.error('Failed to mark as done:', response.data.message);
+        }
+      } catch (error) {
+        console.error('Error marking as done:', error);
+      }
     }
   };
 
@@ -193,24 +213,6 @@ useEffect(() => {
   return () => clearInterval(interval);
 }, [roomCode]);
 
-const handleUnmarkAsDone = async () => {
-  try {
-    const response = await axios.post('http://localhost:3000/unmark-done', {
-      RoomCode: roomCode,
-      MemberName: memberName,
-    });
-
-    if (response.data.success) {
-      setIsDone(false);  // Update the frontend state to reflect the unmarked status
-      setError('');      // Clear any errors
-    } else {
-      setError('Failed to unmark as done. Please try again.');
-    }
-  } catch (error) {
-    console.error('Error unmarking as done:', error);
-    setError('Failed to unmark as done. Please try again.');
-  }
-};
 
   return (
     <div className="flex flex-col items-center justify-center h-screen bg-gray-50">
@@ -311,26 +313,16 @@ const handleUnmarkAsDone = async () => {
         )}
       </div>
       <div className="flex flex-col items-center space-y-3 mt-4">
-        {!isScrumMaster && (
-          <button
-            onClick={handleMarkAsDone}
-            disabled={!castedVote || isDone}  // Disable when no vote casted or already done
-            className={`py-2 px-5 rounded-md transition duration-200 text-base font-medium ${
-              !castedVote || isDone ? 'bg-gray-400 cursor-not-allowed' : 'bg-green-500 hover:bg-green-600 text-white'
-            }`}
-          >
-            {isDone ? 'Already Done' : 'Mark as Done'}
-          </button>
-        )}
-
-        {isDone && (
-          <button
-            onClick={handleUnmarkAsDone}
-            className="py-2 px-5 rounded-md bg-yellow-400 hover:bg-yellow-500 text-white transition duration-200 text-base font-medium"
-          >
-            Unmark as Done
-          </button>
-        )}
+      {!isScrumMaster && (
+        <button
+          onClick={handleToggleDone}
+          className={`py-2 px-5 rounded-md transition duration-200 text-base font-medium ${
+            isDone ? 'bg-yellow-400 hover:bg-yellow-500' : 'bg-green-500 hover:bg-green-600 text-white'
+          }`}
+        >
+          {isDone ? 'Unmark as Done' : 'Mark as Done'}
+        </button>
+      )}
     </div>
     </div>
   );

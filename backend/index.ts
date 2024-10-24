@@ -385,21 +385,26 @@ app.get('/get-casted-vote', async (c) => {
     const result = await pool.request()
       .input('RoomCode', sql.NVarChar(50), RoomCode)
       .input('MemberName', sql.NVarChar(100), MemberName)
-      .query(`SELECT VoteValue FROM Votes 
-              JOIN Members ON Votes.MemberId = Members.MemberId
-              WHERE Votes.RoomId = (SELECT Rooms.RoomId FROM Rooms WHERE RoomCode = @RoomCode)
-              AND Members.MemberName = @MemberName`);
+      .query(`
+        SELECT Votes.VoteValue, Members.IsDone
+        FROM Votes 
+        JOIN Members ON Votes.MemberId = Members.MemberId
+        JOIN Rooms ON Rooms.RoomId = Members.RoomId
+        WHERE Rooms.RoomCode = @RoomCode AND Members.MemberName = @MemberName
+      `);
 
-    if (result.recordset.length > 0) {
-      return c.json({ success: true, castedVote: result.recordset[0].VoteValue });
-    } else {
-      return c.json({ success: true, castedVote: null });
+    if (result.recordset.length === 0) {
+      return c.json({ success: false, message: 'No data found' }, 404);
     }
+
+    const { VoteValue, IsDone } = result.recordset[0];
+    return c.json({ success: true, castedVote: VoteValue, isDone: IsDone });
   } catch (error) {
-    console.error('Error fetching casted vote:', error);
-    return c.json({ success: false, message: 'Failed to fetch casted vote' });
+    console.error('Error fetching vote and done status:', error);
+    return c.json({ success: false, message: 'Failed to fetch data' }, 500);
   }
 });
+
 
 
 // Backend Revote Endpoint
