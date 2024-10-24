@@ -377,6 +377,29 @@ app.get('/revote-status', async (c) => {
   }
 });
 
+app.get('/get-casted-vote', async (c) => {
+  const { RoomCode, MemberName } = c.req.query();
+  const pool = await connectToDatabase();
+
+  try {
+    const result = await pool.request()
+      .input('RoomCode', sql.NVarChar(50), RoomCode)
+      .input('MemberName', sql.NVarChar(100), MemberName)
+      .query(`SELECT VoteValue FROM Votes 
+              JOIN Members ON Votes.MemberId = Members.MemberId
+              WHERE Votes.RoomId = (SELECT Rooms.RoomId FROM Rooms WHERE RoomCode = @RoomCode)
+              AND Members.MemberName = @MemberName`);
+
+    if (result.recordset.length > 0) {
+      return c.json({ success: true, castedVote: result.recordset[0].VoteValue });
+    } else {
+      return c.json({ success: true, castedVote: null });
+    }
+  } catch (error) {
+    console.error('Error fetching casted vote:', error);
+    return c.json({ success: false, message: 'Failed to fetch casted vote' });
+  }
+});
 
 
 // Backend Revote Endpoint
@@ -438,8 +461,5 @@ app.get('/voting-freeze-status', async (c) => {
     return c.json({ success: false, message: 'Failed to fetch voting freeze status' }, 500);
   }
 });
-
-
-
 
 serve(app);

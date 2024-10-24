@@ -89,6 +89,36 @@ const VotingScreen: React.FC = () => {
     setRevealVotes(true);
   };
 
+  useEffect(() => {
+    const fetchCastedVote = async () => {
+      try {
+        const response = await axios.get('http://localhost:3000/get-casted-vote', {
+          params: { RoomCode: roomCode, MemberName: memberName },
+        });
+        const data = response.data;
+  
+        if (data.success && data.castedVote !== null) {
+          const voteValue = data.castedVote;
+  
+          // Check if the voteValue matches any static option
+          if ([1, 2, 3, 5, 8, 13].includes(voteValue)) {
+            setCastedVote(voteValue); // For static options
+            setTextVote(''); // Clear the text box
+          } else {
+            setTextVote(voteValue); // Restore text vote
+            setCastedVote(voteValue); // Clear static options
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching the casted vote:', error);
+      }
+    };
+  
+    fetchCastedVote();
+  }, [roomCode, memberName]);
+  
+  
+
   // Poll the backend to check if the session is frozen and redirect members to results page if votes are revealed
   useEffect(() => {
     const intervalId = setInterval(async () => {
