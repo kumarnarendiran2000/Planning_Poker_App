@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios'; // Import Axios
 
@@ -18,33 +18,91 @@ const LandingPage: React.FC = () => {
       const response = await axios.post('http://localhost:3000/create-room');
       const data = response.data;
       if (data.success) {
-        navigate(`/room/${data.RoomCode}`, { state: { isScrumMaster: true, memberName: 'Scrum Master' } });
+        // Clear any old Scrum Master session
+        localStorage.removeItem('ScrumMasterSession');
+  
+        // Store the new Scrum Master session data
+        localStorage.setItem(
+          'ScrumMasterSession',
+          JSON.stringify({ roomCode: data.RoomCode, scrumMasterId: data.ScrumMasterId, isScrumMaster: true })
+        );
+  
+        // Navigate to the room lobby
+        navigate(`/room/${data.RoomCode}`, { state: { isScrumMaster: true, scrumMasterId: data.ScrumMasterId } });
       }
     } catch (error) {
       console.error('Failed to create room:', error);
-      setError((prev) => ({ ...prev, general: 'Failed to create room. Please try again.' }));
     }
   };
+  
+
+  useEffect(() => {
+    const savedScrumMasterSession = localStorage.getItem('ScrumMasterSession');
+    
+    if (savedScrumMasterSession) {
+      const sessionData = JSON.parse(savedScrumMasterSession);
+      
+      if (sessionData && sessionData.isScrumMaster) {
+        navigate(`/room/${sessionData.roomCode}`, {
+          state: {
+            roomCode: sessionData.RoomCode,
+            scrumMasterId: sessionData.scrumMasterId,
+            isScrumMaster: true,
+          },
+        });
+      }
+    }
+  }, [navigate]);  
+  
 
   const handleJoinRoom = async () => {
     // Clear errors before checking validations
     setError({ roomCode: '', memberName: '', general: '' });
 
-    if (!roomCode) {
-      setError((prev) => ({ ...prev, roomCode: 'Room Code is required' }));
+    if (!roomCode || roomCode.length < 8) {
+      setError((prev) => ({ ...prev, roomCode: 'Valid Room Code is required' }));
+      return;
     }
 
     if (!memberName) {
       setError((prev) => ({ ...prev, memberName: 'Member Name is required' }));
-    }
-
-    // Check for valid room code format (e.g., at least 8 characters)
-    if (roomCode && roomCode.length < 8) {
-      setError((prev) => ({ ...prev, roomCode: 'Room Code must be at least 8 characters long' }));
       return;
     }
 
-    if (roomCode && memberName) {
+    const response1 = await axios.get('http://localhost:3000/check-room-status', { params: { roomCode } });
+    
+    if (response1.data && !response1.data.isActive) {
+      setError((prev) => ({ ...prev, general: 'This room has ended. Please contact the Scrum Master or create a new room.' }));
+      return;
+    }
+
+    // Check if MemberId exists in localStorage
+    const storedMemberId = localStorage.getItem(`MemberId_${roomCode}`);
+    const storedMemberName = localStorage.getItem(`MemberName_${roomCode}`)
+    if (storedMemberId && storedMemberName === memberName) {
+      // Use existing member session
+      navigate(`/room/${roomCode}`, { state: { memberId: storedMemberId, memberName } });
+    }else if(storedMemberId && storedMemberName !== memberName){
+      // MemberId exists but the name has changed, update the name in the database
+      try {
+        const response = await axios.post('http://localhost:3000/update-member-name', {
+          MemberId: storedMemberId,
+          MemberName: memberName,  // New name to update
+        });
+        if (response.data.success) {
+          // Update local storage with the new name
+          localStorage.setItem(`MemberName_${roomCode}`, memberName);
+    
+          // Continue to the room with updated member info
+          navigate(`/room/${roomCode}`, { state: { memberId: storedMemberId, memberName } });
+        } else {
+          setError((prev) => ({ ...prev, general: 'Failed to update member name.' }));
+        }
+      } catch (error) {
+        console.error('Error:', error);
+        setError((prev) => ({ ...prev, general: 'Failed to update member name. Please try again.' }));
+      }
+    } else {
       try {
         const response = await axios.post('http://localhost:3000/join-room', {
           RoomCode: roomCode,
@@ -52,7 +110,10 @@ const LandingPage: React.FC = () => {
         });
         const data = response.data;
         if (data.success) {
-          navigate(`/room/${roomCode}`, { state: { memberName } });
+          // Store MemberId in localStorage
+          localStorage.setItem(`MemberName_${roomCode}`, memberName);
+          localStorage.setItem(`MemberId_${roomCode}`, data.memberId);
+          navigate(`/room/${roomCode}`, { state: { memberId: data.memberId, memberName } });
         } else {
           setError((prev) => ({ ...prev, general: 'Room not found. Please check the Room Code.' }));
         }

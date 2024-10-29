@@ -4,6 +4,7 @@ import axios from 'axios'; // Import Axios
 
 // Define the type for a vote
 interface Vote {
+  MemberId: string;
   MemberName: string;
   VoteValue: number | string;
 }
@@ -17,6 +18,7 @@ const ResultsScreen: React.FC = () => {
   const [voteStats, setVoteStats] = useState<{ AverageVote: number; MinVote: number; MaxVote: number; TotalVotes: number } | null>(null);
   const isScrumMaster = location.state?.isScrumMaster;
   const memberName = location.state?.memberName;
+  const memberId = location.state?.memberId;
   const [loading, setLoading] = useState<boolean>(true); 
   const [error, setError] = useState<string>(''); 
   const [isRevote, setIsRevote] = useState<boolean>(false); 
@@ -42,7 +44,7 @@ const ResultsScreen: React.FC = () => {
         setVoteStats(null);
         
         // Redirect back to the voting screen for Scrum Master to see the "Reveal Votes" button again
-        navigate(`/voting/${roomCode}`, { state: { isScrumMaster, memberName } });
+        navigate(`/voting/${roomCode}`, { state: { isScrumMaster, memberName, memberId } });
       } else {
         console.error('Failed to initiate revote:', data.message);
       }
@@ -51,6 +53,46 @@ const ResultsScreen: React.FC = () => {
     }
   };
 
+  const handleEndSession = async () => {
+    //const roomCode = localStorage.getItem('CurrentRoomCode'); // Assume this is set when the room is created
+  
+    try {
+
+      localStorage.removeItem('ScrumMasterSession'); // Clear using the same exact key
+      
+      // Call the backend to end the session by setting IsActive to 0
+      await axios.post('http://localhost:3000/end-session', { roomCode });
+  
+      // Redirect to the landing page
+      navigate('/');
+    } catch (error) {
+      console.error('Failed to end session:', error);
+      alert('Error ending the session. Please try again.');
+    }
+  };
+  
+  useEffect(() => {
+    const checkRoomStatus = async () => {
+      try {
+        const response = await axios.get('http://localhost:3000/check-room-status', {
+          params: { roomCode },
+        });
+        if (response.data && !response.data.isActive) {
+          alert('This session has ended.');
+          navigate('/'); // Redirect to the landing page
+          // Clear local storage
+          localStorage.removeItem(`MemberName_${roomCode}`);
+          localStorage.removeItem(`MemberId_${roomCode}`);
+        }
+      } catch (error) {
+        console.error('Error checking room status:', error);
+      }
+    };
+  
+    const interval = setInterval(checkRoomStatus, 5000); // Check every 5 seconds
+    return () => clearInterval(interval); // Cleanup on unmount
+  }, [roomCode, navigate]);
+  
   // Fetch the votes and stats when the page loads
   useEffect(() => {
     const fetchResults = async () => {
@@ -105,9 +147,9 @@ const ResultsScreen: React.FC = () => {
   // Redirect members to voting screen once revote is initiated
   useEffect(() => {
     if (isRevote) {
-      navigate(`/voting/${roomCode}`, { state: { memberName, isScrumMaster } }); 
+      navigate(`/voting/${roomCode}`, { state: { memberName, memberId, isScrumMaster } });
     }
-  }, [isRevote, navigate, roomCode, isScrumMaster, memberName]);
+  }, [isRevote, navigate, roomCode, isScrumMaster, memberId, memberName]);
 
   return (
     <div className="flex flex-col items-center justify-center h-screen bg-gray-100">
@@ -158,12 +200,23 @@ const ResultsScreen: React.FC = () => {
 
             {/* Revote Button */}
             {isScrumMaster && (
+            <div>
               <button
                 onClick={handleRevote}
-                className="mt-8 bg-red-600 hover:bg-red-700 text-white py-3 px-6 rounded-lg transition duration-300 shadow-md hover:shadow-lg transform hover:scale-105"
+                className="mt-8 bg-green-600 hover:bg-green-700 text-white py-3 px-6 rounded-lg transition duration-300 shadow-md w-full"
               >
                 Start a New Revote
               </button>
+              <div>
+                <button
+                  onClick={handleEndSession}
+                  className="mt-8 bg-red-600 hover:bg-red-700 text-white py-3 px-6 rounded-lg transition duration-300 shadow-md w-full"
+                >
+                  End Session
+                </button>
+              </div>
+            </div>
+              
             )}
           </>
         )}

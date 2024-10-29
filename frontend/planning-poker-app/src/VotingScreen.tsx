@@ -13,6 +13,7 @@ const VotingScreen: React.FC = () => {
   const location = useLocation();
   const isScrumMaster = location.state?.isScrumMaster;
   const memberName = location.state?.memberName;
+  const memberId = location.state?.memberId;
   const navigate = useNavigate();
 
   const [textVote, setTextVote] = useState<string>(''); 
@@ -37,7 +38,7 @@ const VotingScreen: React.FC = () => {
     try {
       const response = await axios.post('http://localhost:3000/cast-vote', {
         RoomCode: roomCode,
-        MemberName: memberName,
+        MemberId: memberId,
         VoteValue: voteValue,
       });
       const data = response.data;
@@ -68,7 +69,7 @@ const VotingScreen: React.FC = () => {
     try {
       const response = await axios.post('http://localhost:3000/cast-vote', {
         RoomCode: roomCode,
-        MemberName: memberName,
+        MemberId: memberId,
         VoteValue: textVote,
       });
       const data = response.data;
@@ -89,11 +90,52 @@ const VotingScreen: React.FC = () => {
     setRevealVotes(true);
   };
 
+  const handleEndSession = async () => {
+    //const roomCode = localStorage.getItem('CurrentRoomCode'); // Assume this is set when the room is created
+  
+    try {
+
+      localStorage.removeItem('ScrumMasterSession'); // Clear using the same exact key
+    
+
+      // Call the backend to end the session by setting IsActive to 0
+      await axios.post('http://localhost:3000/end-session', { roomCode });
+  
+      // Redirect to the landing page
+      navigate('/');
+    } catch (error) {
+      console.error('Failed to end session:', error);
+      alert('Error ending the session. Please try again.');
+    }
+  };
+
+  useEffect(() => {
+    const checkRoomStatus = async () => {
+      try {
+        const response = await axios.get('http://localhost:3000/check-room-status', {
+          params: { roomCode },
+        });
+        if (response.data && !response.data.isActive) {
+          alert('This session has ended.');
+          navigate('/'); // Redirect to the landing page
+          // Clear local storage
+          localStorage.removeItem(`MemberName_${roomCode}`);
+          localStorage.removeItem(`MemberId_${roomCode}`);
+        }
+      } catch (error) {
+        console.error('Error checking room status:', error);
+      }
+    };
+  
+    const interval = setInterval(checkRoomStatus, 5000); // Check every 5 seconds
+    return () => clearInterval(interval); // Cleanup on unmount
+  }, [roomCode, navigate]);
+  
   useEffect(() => {
     const fetchVoteAndDoneStatus = async () => {
       try {
         const response = await axios.get('http://localhost:3000/get-casted-vote', {
-          params: { RoomCode: roomCode, MemberName: memberName },
+          params: { RoomCode: roomCode, MemberId: memberId },
         });
         const data = response.data;
   
@@ -118,7 +160,7 @@ const VotingScreen: React.FC = () => {
     };
   
     fetchVoteAndDoneStatus();
-  }, [roomCode, memberName]);
+  }, [roomCode, memberId]);
   
   
 
@@ -144,9 +186,9 @@ const VotingScreen: React.FC = () => {
   // Redirect members to results page once votes are revealed
   useEffect(() => {
     if (revealVotes) {
-      navigate(`/results/${roomCode}`, { state: { memberName, isScrumMaster } });
+      navigate(`/results/${roomCode}`, { state: { memberName, isScrumMaster, memberId } });
     }
-  }, [revealVotes, navigate, roomCode, memberName, isScrumMaster]);
+  }, [revealVotes, navigate, roomCode, memberName, isScrumMaster, memberId]);
 
   const handleToggleDone = async () => {
     if (isDone) {
@@ -154,7 +196,7 @@ const VotingScreen: React.FC = () => {
       try {
         const response = await axios.post('http://localhost:3000/unmark-done', {
           RoomCode: roomCode,
-          MemberName: memberName,
+          MemberId: memberId,
         });
 
         if (response.data.success) {
@@ -170,7 +212,7 @@ const VotingScreen: React.FC = () => {
       try {
         const response = await axios.post('http://localhost:3000/mark-done', {
           RoomCode: roomCode,
-          MemberName: memberName,
+          MemberId: memberId,
         });
 
         if (response.data.success) {
@@ -261,6 +303,16 @@ useEffect(() => {
               </ul>
             </div>
             )}
+            {isScrumMaster && (
+              <div>
+                <button
+                  onClick={handleEndSession}
+                  className="mt-4 bg-red-600 hover:bg-red-700 text-white py-3 px-6 rounded-lg transition duration-300 shadow-md w-full"
+                >
+                  End Session
+                </button>
+              </div>
+            )}
             {!isScrumMaster && (
               <div className="space-y-4">
                 <h2 className="text-2xl font-semibold mb-4 text-gray-700">Cast Your Vote</h2>
@@ -270,9 +322,9 @@ useEffect(() => {
                       key={value}
                       onClick={() => handleVote(value)}
                       disabled={isDone} // Disable when done
-                      className={`py-3 px-5 rounded-lg transition duration-300 text-2xl font-semibold
-                      ${castedVote === value ? 'bg-blue-500 text-white' : 'bg-gray-300 hover:bg-gray-300'
-                      }${isDone ? 'bg-gray-200 cursor-not-allowed' : ''}`}
+                      className={`flex justify-center items-center w-16 h-12 py-2 rounded-lg transition duration-300 text-xl font-semibold
+                        ${castedVote === value ? 'bg-blue-500 text-white' : 'bg-gray-300 hover:bg-gray-300'}
+                        ${isDone ? 'bg-gray-200 cursor-not-allowed' : ''}`}                        
                     >
                       {value}
                     </button>

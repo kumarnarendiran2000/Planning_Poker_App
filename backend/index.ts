@@ -38,11 +38,207 @@ app.post('/create-room', async (c) => {
 });
 
 
-app.post('/join-room', async (c) => {
-  const { RoomCode, MemberName } = await c.req.json();
+  app.post('/join-room', async (c) => {
+    const { RoomCode, MemberName } = await c.req.json();
+    const pool = await connectToDatabase();
+
+    try {
+      const roomResult = await pool.request()
+        .input('RoomCode', sql.NVarChar(50), RoomCode)
+        .query(`SELECT RoomId FROM Rooms WHERE RoomCode = @RoomCode`);
+
+      if (roomResult.recordset.length === 0) {
+        return c.json({ success: false, message: 'Room not found' }, 404);
+      }
+
+      const RoomId = roomResult.recordset[0].RoomId;
+      const MemberId = uuidv4(); 
+
+      await pool.request()
+        .input('MemberId', sql.UniqueIdentifier, MemberId)
+        .input('RoomId', sql.UniqueIdentifier, RoomId)
+        .input('MemberName', sql.NVarChar(100), MemberName)
+        .query(`INSERT INTO Members (MemberId, RoomId, MemberName) 
+                VALUES (@MemberId, @RoomId, @MemberName)`);
+
+      return c.json({ success: true, message: 'Joined room successfully', memberId: MemberId });
+    } catch (error) {
+      console.error('Error joining room:', error);
+      return c.json({ success: false, message: 'Failed to join room' }, 500);
+    }
+  });
+
+  app.post('/end-session', async (c) => {
+    const { roomCode } = await c.req.json();
+    const pool = await connectToDatabase();
+  
+    try {
+      // Update the room's status to inactive
+      await pool.request()
+        .input('RoomCode', sql.NVarChar(50), roomCode)
+        .query(`UPDATE Rooms SET IsActive = 0 WHERE RoomCode = @RoomCode`);
+  
+      return c.json({ success: true, message: 'Session ended successfully' });
+    } catch (error) {
+      console.error('Error ending session:', error);
+      return c.json({ success: false, message: 'Failed to end session' }, 500);
+    }
+  });
+
+  app.get('/check-room-status', async (c) => {
+    const { roomCode } = c.req.query();
+    const pool = await connectToDatabase();
+  
+    try {
+      const result = await pool.request()
+        .input('RoomCode', sql.NVarChar(50), roomCode)
+        .query(`SELECT IsActive FROM Rooms WHERE RoomCode = @RoomCode`);
+  
+      if (result.recordset.length === 0) {
+        return c.json({ success: false, message: 'Room not found' }, 404);
+      }
+  
+      const isActive = result.recordset[0].IsActive;
+      return c.json({ success: true, isActive });
+    } catch (error) {
+      console.error('Error checking room status:', error);
+      return c.json({ success: false, message: 'Failed to check room status' }, 500);
+    }
+  });
+  
+  
+
+  app.post('/start-voting', async (c) => {
+    const { RoomCode } = await c.req.json();
+    const pool = await connectToDatabase();
+
+    try {
+      const result = await pool.request()
+        .input('RoomCode', sql.NVarChar(50), RoomCode)
+        .query(`UPDATE Rooms SET VotingStarted = 1 WHERE RoomCode = @RoomCode`);
+
+      if (result.rowsAffected[0] > 0) {
+        return c.json({ success: true, message: 'Voting session started' });
+      } else {
+        return c.json({ success: false, message: 'Room not found' });
+      }
+    } catch (error) {
+      console.error('Error starting voting session:', error);
+      return c.json({ success: false, message: 'Failed to start voting session' }, 500);
+    }
+  });
+
+  app.post('/update-member-name', async (c) => {
+    const {MemberId, MemberName } = await c.req.json();
+    const pool = await connectToDatabase();
+  
+    try {
+      // Update the member's name in the Members table
+      await pool.request()
+        .input('MemberId', sql.UniqueIdentifier, MemberId)
+        .input('MemberName', sql.NVarChar(100), MemberName)
+        .query(`UPDATE Members SET MemberName = @MemberName WHERE MemberId = @MemberId`);
+  
+      return c.json({ success: true, message: 'Member name updated successfully' });
+    } catch (error) {
+      console.error('Error updating member name:', error);
+      return c.json({ success: false, message: 'Failed to update member name' }, 500);
+    }
+  });
+  
+
+  app.post('/mark-done', async (c) => {
+    const { RoomCode, MemberId } = await c.req.json();
+    const pool = await connectToDatabase();
+
+    try {
+      // Fetch the RoomId using the RoomCode
+      const roomResult = await pool.request()
+        .input('RoomCode', sql.NVarChar(50), RoomCode)
+        .query(`
+          SELECT RoomId 
+          FROM Rooms 
+          WHERE RoomCode = @RoomCode
+        `);
+
+      if (roomResult.recordset.length === 0) {
+        return c.json({ success: false, message: 'Room not found' }, 404);
+      }
+
+      const RoomId = roomResult.recordset[0].RoomId;
+
+      // Check if the member exists with the given RoomId and MemberId
+      const memberResult = await pool.request()
+        .input('RoomId', sql.UniqueIdentifier, RoomId)
+        .input('MemberId', sql.UniqueIdentifier, MemberId)
+        .query(`
+          SELECT MemberId 
+          FROM Members 
+          WHERE RoomId = @RoomId AND MemberId = @MemberId
+        `);
+
+      if (memberResult.recordset.length === 0) {
+        return c.json({ success: false, message: 'Member not found' }, 404);
+      }
+
+      // Update the member's "done" status in the database
+      await pool.request()
+        .input('MemberId', sql.UniqueIdentifier, MemberId)
+        .query(`UPDATE Members SET IsDone = 1 WHERE MemberId = @MemberId`);
+
+      return c.json({ success: true, message: 'Marked as done successfully' });
+    } catch (error) {
+      console.error('Error marking voting as done:', error);
+      return c.json({ success: false, message: 'Failed to mark voting as done' }, 500);
+    }
+  });
+
+// Unmark as Done API
+  app.post('/unmark-done', async (c) => {
+    const { RoomCode, MemberId } = await c.req.json();
+    const pool = await connectToDatabase();
+
+    try {
+      // Fetch the RoomId
+      const roomResult = await pool.request()
+        .input('RoomCode', sql.NVarChar(50), RoomCode)
+        .query(`SELECT RoomId FROM Rooms WHERE RoomCode = @RoomCode`);
+
+      if (roomResult.recordset.length === 0) {
+        return c.json({ success: false, message: 'Room not found' }, 404);
+      }
+
+      const RoomId = roomResult.recordset[0].RoomId;
+
+      // Check if the member exists with the given RoomId and MemberId
+      const memberResult = await pool.request()
+        .input('RoomId', sql.UniqueIdentifier, RoomId)
+        .input('MemberId', sql.UniqueIdentifier, MemberId)
+        .query(`SELECT MemberId FROM Members WHERE RoomId = @RoomId AND MemberId = @MemberId`);
+
+      if (memberResult.recordset.length === 0) {
+        return c.json({ success: false, message: 'Member not found' }, 404);
+      }
+
+      // Update the member's "done" status in the database (set IsDone to 0)
+      await pool.request()
+        .input('MemberId', sql.UniqueIdentifier, MemberId)
+        .query(`UPDATE Members SET IsDone = 0 WHERE MemberId = @MemberId`);
+
+      return c.json({ success: true, message: 'Unmarked as done successfully' });
+    } catch (error) {
+      console.error('Error unmarking as done:', error);
+      return c.json({ success: false, message: 'Failed to unmark as done' }, 500);
+    }
+  });
+
+
+app.get('/members-done-status', async (c) => {
+  const { RoomCode } = c.req.query();
   const pool = await connectToDatabase();
 
   try {
+    // Fetch the RoomId based on RoomCode
     const roomResult = await pool.request()
       .input('RoomCode', sql.NVarChar(50), RoomCode)
       .query(`SELECT RoomId FROM Rooms WHERE RoomCode = @RoomCode`);
@@ -52,124 +248,14 @@ app.post('/join-room', async (c) => {
     }
 
     const RoomId = roomResult.recordset[0].RoomId;
-    const MemberId = uuidv4(); 
 
-    await pool.request()
-      .input('MemberId', sql.UniqueIdentifier, MemberId)
-      .input('RoomId', sql.UniqueIdentifier, RoomId)
-      .input('MemberName', sql.NVarChar(100), MemberName)
-      .query(`INSERT INTO Members (MemberId, RoomId, MemberName) 
-              VALUES (@MemberId, @RoomId, @MemberName)`);
-
-    return c.json({ success: true, message: 'Joined room successfully' });
-  } catch (error) {
-    console.error('Error joining room:', error);
-    return c.json({ success: false, message: 'Failed to join room' }, 500);
-  }
-});
-
-app.post('/start-voting', async (c) => {
-  const { RoomCode } = await c.req.json();
-  const pool = await connectToDatabase();
-
-  try {
-    const result = await pool.request()
-      .input('RoomCode', sql.NVarChar(50), RoomCode)
-      .query(`UPDATE Rooms SET VotingStarted = 1 WHERE RoomCode = @RoomCode`);
-
-    if (result.rowsAffected[0] > 0) {
-      return c.json({ success: true, message: 'Voting session started' });
-    } else {
-      return c.json({ success: false, message: 'Room not found' });
-    }
-  } catch (error) {
-    console.error('Error starting voting session:', error);
-    return c.json({ success: false, message: 'Failed to start voting session' }, 500);
-  }
-});
-
-app.post('/mark-done', async (c) => {
-  const { RoomCode, MemberName } = await c.req.json();
-  const pool = await connectToDatabase();
-
-  try {
-    // Fetch the RoomId and MemberId
-    const memberResult = await pool.request()
-      .input('RoomCode', sql.NVarChar(50), RoomCode)
-      .input('MemberName', sql.NVarChar(50), MemberName)
-      .query(`
-        SELECT Members.MemberId
-        FROM Members 
-        INNER JOIN Rooms ON Rooms.RoomId = Members.RoomId
-        WHERE Rooms.RoomCode = @RoomCode AND Members.MemberName = @MemberName
-      `);
-
-    if (memberResult.recordset.length === 0) {
-      return c.json({ success: false, message: 'Member not found' }, 404);
-    }
-
-    const MemberId = memberResult.recordset[0].MemberId;
-
-    // Update the member's "done" status in the database
-    await pool.request()
-      .input('MemberId', sql.UniqueIdentifier, MemberId)
-      .query(`UPDATE Members SET IsDone = 1 WHERE MemberId = @MemberId`);
-
-    return c.json({ success: true });
-  } catch (error) {
-    console.error('Error marking voting as done:', error);
-    return c.json({ success: false, message: 'Failed to mark voting as done' }, 500);
-  }
-});
-
-// Unmark as Done API
-app.post('/unmark-done', async (c) => {
-  const { RoomCode, MemberName } = await c.req.json();
-  const pool = await connectToDatabase();
-
-  try {
-    // Fetch the RoomId and MemberId
-    const memberResult = await pool.request()
-      .input('RoomCode', sql.NVarChar(50), RoomCode)
-      .input('MemberName', sql.NVarChar(50), MemberName)
-      .query(`
-        SELECT Members.MemberId
-        FROM Members 
-        INNER JOIN Rooms ON Rooms.RoomId = Members.RoomId
-        WHERE Rooms.RoomCode = @RoomCode AND Members.MemberName = @MemberName
-      `);
-
-    if (memberResult.recordset.length === 0) {
-      return c.json({ success: false, message: 'Member not found' }, 404);
-    }
-
-    const MemberId = memberResult.recordset[0].MemberId;
-
-    // Update the member's "done" status in the database (set IsDone to 0)
-    await pool.request()
-      .input('MemberId', sql.UniqueIdentifier, MemberId)
-      .query(`UPDATE Members SET IsDone = 0 WHERE MemberId = @MemberId`);
-
-    return c.json({ success: true });
-  } catch (error) {
-    console.error('Error unmarking as done:', error);
-    return c.json({ success: false, message: 'Failed to unmark as done' }, 500);
-  }
-});
-
-app.get('/members-done-status', async (c) => {
-  const { RoomCode } = c.req.query();
-  const pool = await connectToDatabase();
-
-  try {
-    // Fetch all members and their done status
+    // Fetch all members and their done status for the given RoomId
     const membersResult = await pool.request()
-      .input('RoomCode', sql.NVarChar(50), RoomCode)
+      .input('RoomId', sql.UniqueIdentifier, RoomId)
       .query(`
-        SELECT Members.MemberName, Members.IsDone
+        SELECT Members.MemberId, Members.MemberName, Members.IsDone
         FROM Members
-        INNER JOIN Rooms ON Rooms.RoomId = Members.RoomId
-        WHERE Rooms.RoomCode = @RoomCode
+        WHERE RoomId = @RoomId
       `);
 
     return c.json({ success: true, members: membersResult.recordset });
@@ -179,8 +265,9 @@ app.get('/members-done-status', async (c) => {
   }
 });
 
+
 app.post('/cast-vote', async (c) => {
-  const { RoomCode, MemberName, VoteValue } = await c.req.json();
+  const { RoomCode, MemberId, VoteValue } = await c.req.json();
   const pool = await connectToDatabase();
 
   try {
@@ -195,31 +282,31 @@ app.post('/cast-vote', async (c) => {
 
     const RoomId = roomResult.recordset[0].RoomId;
 
+    // Check if the member exists using MemberId and RoomId
     const memberResult = await pool.request()
       .input('RoomId', sql.UniqueIdentifier, RoomId)
-      .input('MemberName', sql.NVarChar(100), MemberName)
-      .query(`SELECT MemberId FROM Members WHERE RoomId = @RoomId AND MemberName = @MemberName`);
+      .input('MemberId', sql.UniqueIdentifier, MemberId)
+      .query(`SELECT MemberId FROM Members WHERE RoomId = @RoomId AND MemberId = @MemberId`);
 
     if (memberResult.recordset.length === 0) {
       return c.json({ success: false, message: 'Member not found in the room' }, 404);
     }
 
-    const MemberId = memberResult.recordset[0].MemberId;
-
-    // Log vote check result
+    // Check if the member has already cast a vote
     const voteResult = await pool.request()
       .input('RoomId', sql.UniqueIdentifier, RoomId)
       .input('MemberId', sql.UniqueIdentifier, MemberId)
       .query(`SELECT VoteId FROM Votes WHERE RoomId = @RoomId AND MemberId = @MemberId`);
-    
 
     if (voteResult.recordset.length > 0) {
+      // If a vote already exists, update the existing vote
       const VoteId = voteResult.recordset[0].VoteId;
       await pool.request()
         .input('VoteId', sql.UniqueIdentifier, VoteId)
         .input('VoteValue', sql.Int, VoteValue)
         .query(`UPDATE Votes SET VoteValue = @VoteValue WHERE VoteId = @VoteId`);
     } else {
+      // If no vote exists, insert a new vote
       const VoteId = uuidv4();
       await pool.request()
         .input('VoteId', sql.UniqueIdentifier, VoteId)
@@ -243,6 +330,7 @@ app.post('/reveal-votes', async (c) => {
   const pool = await connectToDatabase();
 
   try {
+    // Fetch RoomId based on RoomCode
     const roomResult = await pool.request()
       .input('RoomCode', sql.NVarChar(50), RoomCode)
       .query(`SELECT RoomId FROM Rooms WHERE RoomCode = @RoomCode`);
@@ -258,7 +346,7 @@ app.post('/reveal-votes', async (c) => {
       .input('RoomId', sql.UniqueIdentifier, RoomId)
       .query(`UPDATE Rooms SET VotingFrozen = 1, IsRevote = 0 WHERE RoomId = @RoomId`);
 
-    // Fetch the votes after revealing them
+    // Fetch the votes and corresponding MemberName for the Room
     const votesResult = await pool.request()
       .input('RoomId', sql.UniqueIdentifier, RoomId)
       .query(`SELECT Members.MemberName, Votes.VoteValue 
@@ -377,33 +465,37 @@ app.get('/revote-status', async (c) => {
   }
 });
 
-app.get('/get-casted-vote', async (c) => {
-  const { RoomCode, MemberName } = c.req.query();
-  const pool = await connectToDatabase();
+  app.get('/get-casted-vote', async (c) => {
+    const { RoomCode, MemberId } = c.req.query();  // Get RoomCode and MemberId from the query params
+    const pool = await connectToDatabase();
 
-  try {
-    const result = await pool.request()
-      .input('RoomCode', sql.NVarChar(50), RoomCode)
-      .input('MemberName', sql.NVarChar(100), MemberName)
-      .query(`
-        SELECT Votes.VoteValue, Members.IsDone
-        FROM Votes 
-        JOIN Members ON Votes.MemberId = Members.MemberId
-        JOIN Rooms ON Rooms.RoomId = Members.RoomId
-        WHERE Rooms.RoomCode = @RoomCode AND Members.MemberName = @MemberName
-      `);
+    try {
+      // Fetch the vote value and done status using MemberId and RoomCode
+      const result = await pool.request()
+        .input('RoomCode', sql.NVarChar(50), RoomCode)
+        .input('MemberId', sql.UniqueIdentifier, MemberId)  // Use MemberId instead of MemberName
+        .query(`
+          SELECT Votes.VoteValue, Members.IsDone
+          FROM Votes 
+          JOIN Members ON Votes.MemberId = Members.MemberId
+          JOIN Rooms ON Rooms.RoomId = Members.RoomId
+          WHERE Rooms.RoomCode = @RoomCode AND Members.MemberId = @MemberId
+        `);
 
-    if (result.recordset.length === 0) {
-      return c.json({ success: false, message: 'No data found' }, 404);
+      // If no data is found, return a 404 response
+      if (result.recordset.length === 0) {
+        return c.json({ success: false, message: 'No data found' }, 404);
+      }
+
+      // Extract the vote value and done status from the result
+      const { VoteValue, IsDone } = result.recordset[0];
+      return c.json({ success: true, castedVote: VoteValue, isDone: IsDone });
+    } catch (error) {
+      console.error('Error fetching vote and done status:', error);
+      return c.json({ success: false, message: 'Failed to fetch data' }, 500);
     }
+  });
 
-    const { VoteValue, IsDone } = result.recordset[0];
-    return c.json({ success: true, castedVote: VoteValue, isDone: IsDone });
-  } catch (error) {
-    console.error('Error fetching vote and done status:', error);
-    return c.json({ success: false, message: 'Failed to fetch data' }, 500);
-  }
-});
 
 
 

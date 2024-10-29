@@ -7,6 +7,7 @@ const RoomLobby: React.FC = () => {
   const location = useLocation();
   const isScrumMaster = location.state?.isScrumMaster;
   const memberName = location.state?.memberName;
+  const memberId = location.state?.memberId;
   const navigate = useNavigate();
 
   const [members, setMembers] = useState<string[]>([]);
@@ -66,9 +67,32 @@ const RoomLobby: React.FC = () => {
 
   useEffect(() => {
     if (votingStarted) {
-      navigate(`/voting/${roomCode}`, { state: { isScrumMaster, memberName } });
+      navigate(`/voting/${roomCode}`, { state: { isScrumMaster, memberName, memberId } });
     }
-  }, [votingStarted, navigate, roomCode, isScrumMaster, memberName]);
+  }, [votingStarted, navigate, roomCode, isScrumMaster, memberName, memberId]);
+
+  useEffect(() => {
+    const checkRoomStatus = async () => {
+      try {
+        const response = await axios.get('http://localhost:3000/check-room-status', {
+          params: { roomCode },
+        });
+        if (response.data && !response.data.isActive) {
+          alert('This session has ended.');
+          navigate('/'); // Redirect to the landing page
+          // Clear local storage
+          localStorage.removeItem(`MemberName_${roomCode}`);
+          localStorage.removeItem(`MemberId_${roomCode}`);
+        }
+      } catch (error) {
+        console.error('Error checking room status:', error);
+      }
+    };
+  
+    const interval = setInterval(checkRoomStatus, 5000); // Check every 5 seconds
+    return () => clearInterval(interval); // Cleanup on unmount
+  }, [roomCode, navigate]);
+  
 
   const handleStartVoting = async () => {
     try {
@@ -77,7 +101,7 @@ const RoomLobby: React.FC = () => {
       });
       const data = response.data;
       if (data.success) {
-        navigate(`/voting/${roomCode}`, { state: { isScrumMaster, memberName } });
+        navigate(`/voting/${roomCode}`, { state: { isScrumMaster, memberName, memberId } });
       } else {
         console.error('Failed to start voting session:', data.message);
       }
@@ -85,6 +109,25 @@ const RoomLobby: React.FC = () => {
       console.error('Error:', error);
     }
   };
+
+  const handleEndSession = async () => {
+    //const roomCode = localStorage.getItem('CurrentRoomCode'); // Assume this is set when the room is created
+  
+    try {
+
+      localStorage.removeItem('ScrumMasterSession'); // Clear using the same exact key
+
+      // Call the backend to end the session by setting IsActive to 0
+      await axios.post('http://localhost:3000/end-session', { roomCode });
+  
+      // Redirect to the landing page
+      navigate('/');
+    } catch (error) {
+      console.error('Failed to end session:', error);
+      alert('Error ending the session. Please try again.');
+    }
+  };
+  
 
   return (
     <div className="flex flex-col items-center justify-center h-screen bg-gray-100">
@@ -100,7 +143,6 @@ const RoomLobby: React.FC = () => {
                 className="flex justify-between items-center bg-white p-4 rounded-lg shadow-sm"
               >
                 <span className="text-lg font-medium text-gray-800">{member}</span>
-                {/* You can add an icon or status indicator here */}
               </li>
             ))}
           </ul>
@@ -115,6 +157,14 @@ const RoomLobby: React.FC = () => {
             >
               Start Voting
             </button>
+              <div>
+                <button
+                  onClick={handleEndSession}
+                  className="mt-4 bg-red-600 hover:bg-red-700 text-white py-3 px-6 rounded-lg transition duration-300 shadow-md w-full"
+                >
+                  End Session
+                </button>
+              </div>
           </div>
         ) : (
           <p className="text-xl text-blue-600 font-semibold text-center">You are a Member: {memberName}</p>
