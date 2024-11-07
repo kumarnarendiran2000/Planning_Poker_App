@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios'; // Import Axios
+import { io, Socket } from 'socket.io-client';
 
 const LandingPage: React.FC = () => {
   const [roomCode, setRoomCode] = useState('');
@@ -32,6 +33,34 @@ const LandingPage: React.FC = () => {
       }
     } catch (error) {
       console.error('Failed to create room:', error);
+    }
+  };
+
+  const socketRef = useRef<Socket | null>(null);
+
+  useEffect(() => {
+    // Initialize the socket connection and store it in socketRef
+    socketRef.current = io('http://localhost:3000', {
+      path: '/ws', // Ensure this matches the server's path setting
+    });
+
+    // Listen for messages from the server
+    socketRef.current.on('hello', (message: string) => {
+      console.log('Message from server:', message);
+    });
+
+    // Cleanup: disconnect the socket when the component unmounts
+    return () => {
+      socketRef.current?.disconnect();
+      console.log('Socket disconnected');
+    };
+  }, []); // Empty dependency array to ensure this only runs once
+
+  const handleDisconnect = () => {
+    // Manually disconnect the socket if it's connected
+    if (socketRef.current && socketRef.current.connected) {
+      socketRef.current.disconnect();
+      console.log('Socket manually disconnected');
     }
   };
   
@@ -126,6 +155,12 @@ const LandingPage: React.FC = () => {
 
   return (
     <div className="flex flex-col items-center justify-center h-screen bg-gray-100">
+
+    <div>
+      <h1 className="text-4xl font-extrabold text-center text-blue-600 mb-10">Socket IO testing</h1>
+      <button className="bg-blue-600 hover:bg-blue-700 text-white py-3 px-5 text-lg rounded-lg transition duration-300 shadow-lg" onClick={handleDisconnect}>Disconnect</button>
+    </div>
+
       <div className="bg-white shadow-lg rounded-lg p-8 max-w-md w-full">
         <h1 className="text-4xl font-extrabold text-center text-blue-600 mb-10">PLANNING POKER</h1>
 

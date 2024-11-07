@@ -4,8 +4,51 @@ import { connectToDatabase } from './db';
 import { v4 as uuidv4 } from 'uuid';
 import sql from 'mssql';
 import { cors } from 'hono/cors';
+import { Server as SocketIOServer } from 'socket.io';
+import { Server as HttpServer } from 'http';
+
 
 const app = new Hono();
+
+// Create the HTTP server for Hono
+const honoServer = serve(
+  {
+    fetch: app.fetch,
+    port: 3000,
+  },
+  (info) => {
+    console.log(`Hono server is running at http://${info.address}:${info.port}`);
+  }
+);
+
+// Initialize Socket.IO with the HTTP server
+const io = new SocketIOServer(honoServer as unknown as HttpServer, {
+  path: '/ws',
+  cors: {
+    origin: '*', // Allow all origins for testing
+  },
+});
+
+// Handle the 'connection' event when a client connects
+io.on('connection', (socket) => {
+  console.log(`Client connected: ${socket.id}`);
+
+  // Emitting a test event to all connected clients every second
+  const intervalId = setInterval(() => {
+    socket.emit('hello', 'world');
+  }, 1000);
+
+  // Disconnect event for cleanup
+  socket.on('disconnect', () => {
+    console.log(`Client disconnected: ${socket.id}`);
+    clearInterval(intervalId); // Stop emitting on disconnection
+  });
+});
+
+// Log any Socket.IO errors
+io.on('error', (error) => {
+  console.error('Socket.IO error:', error);
+});
 
 // Enable CORS for all routes
 app.use('*', cors());
@@ -559,4 +602,3 @@ app.get('/voting-freeze-status', async (c) => {
   }
 });
 
-serve(app);
