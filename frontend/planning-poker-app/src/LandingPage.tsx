@@ -36,6 +36,27 @@ const LandingPage: React.FC = () => {
   };
 
   useEffect(() => {
+    // Initialize the EventSource connection
+    const eventSource = new EventSource('http://localhost:3000/sse/updates');
+
+    // Listen for messages from the server
+    eventSource.onmessage = (event) => {
+      console.log('Message from server:', event.data);
+    };
+
+    // Handle any errors with the connection
+    eventSource.onerror = (error) => {
+      console.error('Error with SSE:', error);
+      eventSource.close(); // Close the connection on error
+    };
+
+    // Cleanup the EventSource connection when the component unmounts
+    return () => {
+      eventSource.close();
+    };
+  }, []); // Empty dependency array to ensure this runs only on mount and unmount
+
+  useEffect(() => {
     const savedScrumMasterSession = localStorage.getItem('ScrumMasterSession');
     
     if (savedScrumMasterSession) {
@@ -125,6 +146,9 @@ const LandingPage: React.FC = () => {
 
   return (
     <div className="flex flex-col items-center justify-center h-screen bg-gray-100">
+
+      <h1>Welcome to the Planning Poker App!</h1>
+
       <div className="bg-white shadow-lg rounded-lg p-8 max-w-md w-full">
         <h1 className="text-4xl font-extrabold text-center text-blue-600 mb-10">PLANNING POKER</h1>
 

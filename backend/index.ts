@@ -381,6 +381,34 @@ app.get('/voting-status', async (c) => {
   }
 });
 
+// SSE endpoint
+app.get('/sse/updates', (c) => {
+  const headers = {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive',
+  };
+
+  // Create a stream that will send a message every few seconds
+  const stream = new ReadableStream({
+    start(controller) {
+      const sendEvent = () => {
+        controller.enqueue(`data: Hello from server at ${new Date().toISOString()}\n\n`);
+      };
+
+      // Send a message every 2 seconds
+      const intervalId = setInterval(sendEvent, 2000);
+
+      // Clean up the interval when the stream is closed
+      controller.close = () => {
+        clearInterval(intervalId);
+      };
+    },
+  });
+
+  // Return the stream with appropriate headers
+  return new Response(stream, { headers });
+});
 
 app.get('/voting-stats', async (c) => {
   const { RoomCode } = c.req.query();
