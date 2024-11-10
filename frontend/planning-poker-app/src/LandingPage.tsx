@@ -13,6 +13,24 @@ const LandingPage: React.FC = () => {
     document.title = 'Planning Poker';
   }, []);
 
+  useEffect(() => {
+    const savedScrumMasterSession = localStorage.getItem('ScrumMasterSession');
+    
+    if (savedScrumMasterSession) {
+      const sessionData = JSON.parse(savedScrumMasterSession);
+      
+      if (sessionData && sessionData.isScrumMaster) {
+        navigate(`/room/${sessionData.roomCode}`, {
+          state: {
+            roomCode: sessionData.RoomCode,
+            scrumMasterId: sessionData.scrumMasterId,
+            isScrumMaster: true,
+          },
+        });
+      }
+    }
+  }, [navigate]);  
+
   const handleCreateRoom = async () => {
     try {
       const response = await axios.post('http://localhost:3000/create-room');
@@ -35,46 +53,6 @@ const LandingPage: React.FC = () => {
     }
   };
 
-  useEffect(() => {
-    // Initialize the EventSource connection
-    const eventSource = new EventSource('http://localhost:3000/sse/updates');
-
-    // Listen for messages from the server
-    eventSource.onmessage = (event) => {
-      console.log('Message from server:', event.data);
-    };
-
-    // Handle any errors with the connection
-    eventSource.onerror = (error) => {
-      console.error('Error with SSE:', error);
-      eventSource.close(); // Close the connection on error
-    };
-
-    // Cleanup the EventSource connection when the component unmounts
-    return () => {
-      eventSource.close();
-    };
-  }, []); // Empty dependency array to ensure this runs only on mount and unmount
-
-  useEffect(() => {
-    const savedScrumMasterSession = localStorage.getItem('ScrumMasterSession');
-    
-    if (savedScrumMasterSession) {
-      const sessionData = JSON.parse(savedScrumMasterSession);
-      
-      if (sessionData && sessionData.isScrumMaster) {
-        navigate(`/room/${sessionData.roomCode}`, {
-          state: {
-            roomCode: sessionData.RoomCode,
-            scrumMasterId: sessionData.scrumMasterId,
-            isScrumMaster: true,
-          },
-        });
-      }
-    }
-  }, [navigate]);  
-  
-
   const handleJoinRoom = async () => {
     // Clear errors before checking validations
     setError({ roomCode: '', memberName: '', general: '' });
@@ -89,9 +67,9 @@ const LandingPage: React.FC = () => {
       return;
     }
 
-    const response1 = await axios.get('http://localhost:3000/check-room-status', { params: { roomCode } });
+    const response = await axios.get('http://localhost:3000/check-room-status', { params: { roomCode } });
     
-    if (response1.data && !response1.data.isActive) {
+    if (response.data && !response.data.isActive) {
       setError((prev) => ({ ...prev, general: 'This room has ended. Please contact the Scrum Master or create a new room.' }));
       return;
     }
@@ -146,9 +124,6 @@ const LandingPage: React.FC = () => {
 
   return (
     <div className="flex flex-col items-center justify-center h-screen bg-gray-100">
-
-      <h1>Welcome to the Planning Poker App!</h1>
-
       <div className="bg-white shadow-lg rounded-lg p-8 max-w-md w-full">
         <h1 className="text-4xl font-extrabold text-center text-blue-600 mb-10">PLANNING POKER</h1>
 

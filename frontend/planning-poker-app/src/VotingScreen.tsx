@@ -2,11 +2,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useLocation, useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios'; // Import Axios
 
-interface Member {
-  MemberId: string;
-  MemberName: string;
-  IsDone: boolean;
-}
 
 const VotingScreen: React.FC = () => {
   const { roomCode } = useParams<{ roomCode: string }>();
@@ -32,6 +27,127 @@ const VotingScreen: React.FC = () => {
       document.title = `Planning Poker - Member: ${memberName}`;
     }
   }, [isScrumMaster, memberName]);
+
+  useEffect(() => {
+    if (!roomCode || !memberId) return;
+  
+    const eventSource = new EventSource(`http://localhost:3000/sse/casted-vote-done-status?RoomCode=${roomCode}&MemberId=${memberId}`);
+    
+    eventSource.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      
+      if (data.error) {
+        console.error(data.error);
+        return;
+      }
+  
+      if (data.castedVote !== null) {
+        const voteValue = data.castedVote;
+  
+        if ([1, 2, 3, 5, 8, 13].includes(voteValue)) {
+          setCastedVote(voteValue);
+          setTextVote('');
+        } else {
+          setTextVote(voteValue);
+          setCastedVote(voteValue);
+        }
+        
+        setIsDone(data.isDone);
+      }
+    };
+  
+    eventSource.onerror = (error) => {
+      console.error("Error with SSE:", error);
+      eventSource.close();
+    };
+  
+    return () => {
+      eventSource.close();
+    };
+  }, [roomCode, memberId]);
+
+  useEffect(() => {
+    const eventSource = new EventSource(`http://localhost:3000/sse/room-status?roomCode=${roomCode}`);
+  
+    eventSource.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      if (data.isActive === false) {
+        // Perform cleanup actions if the session is inactive
+        alert('This session has ended.');
+        navigate('/'); // Redirect to landing or home
+        localStorage.removeItem(`MemberName_${roomCode}`);
+        localStorage.removeItem(`MemberId_${roomCode}`);
+      }
+    };
+  
+    eventSource.onerror = (error) => {
+      console.error("Error with SSE:", error);
+      eventSource.close();
+    };
+  
+    return () => {
+      eventSource.close(); // Clean up on unmount
+    };
+  }, [navigate, roomCode]);
+
+  useEffect(() => {
+    if (!roomCode) return;
+  
+    const eventSource = new EventSource(`http://localhost:3000/sse/voting-freeze-status?RoomCode=${roomCode}`);
+    
+    eventSource.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+  
+      if (data.error) {
+        console.error(data.error);
+        return;
+      }
+  
+      if (data.VotingFrozen) {
+        setRevealVotes(true);
+      }
+    };
+  
+    eventSource.onerror = (error) => {
+      console.error("Error with SSE:", error);
+      eventSource.close();
+    };
+  
+    return () => {
+      eventSource.close();
+    };
+  }, [roomCode]);
+
+  useEffect(() => {
+    if (!roomCode) return;
+  
+    const eventSource = new EventSource(`http://localhost:3000/sse/members-done-status?RoomCode=${roomCode}`);
+  
+    eventSource.onmessage = (event) => {
+      const updatedMembers = JSON.parse(event.data);
+  
+      // Update members' list and check if all are done
+      setMembers(updatedMembers);
+      const allDone = updatedMembers.every((member: { isDone: boolean }) => member.isDone);
+      setAllMembersDone(allDone);
+    };
+  
+    eventSource.onerror = (error) => {
+      console.error("Error with SSE:", error);
+      eventSource.close();
+    };
+  
+    return () => {
+      eventSource.close(); // Clean up on component unmount
+    };
+  }, [roomCode]);
+
+  // Redirect members to results page once votes are revealed
+  useEffect(() => {
+    if (revealVotes) {
+      navigate(`/results/${roomCode}`, { state: { memberName, isScrumMaster, memberId } });
+    }
+  }, [revealVotes, navigate, roomCode, memberName, isScrumMaster, memberId]);
 
   // Function to cast a vote
   const handleVote = async (voteValue: number) => {
@@ -109,87 +225,6 @@ const VotingScreen: React.FC = () => {
     }
   };
 
-  useEffect(() => {
-    const checkRoomStatus = async () => {
-      try {
-        const response = await axios.get('http://localhost:3000/check-room-status', {
-          params: { roomCode },
-        });
-        if (response.data && !response.data.isActive) {
-          alert('This session has ended.');
-          navigate('/'); // Redirect to the landing page
-          // Clear local storage
-          localStorage.removeItem(`MemberName_${roomCode}`);
-          localStorage.removeItem(`MemberId_${roomCode}`);
-        }
-      } catch (error) {
-        console.error('Error checking room status:', error);
-      }
-    };
-  
-    const interval = setInterval(checkRoomStatus, 5000); // Check every 5 seconds
-    return () => clearInterval(interval); // Cleanup on unmount
-  }, [roomCode, navigate]);
-  
-  useEffect(() => {
-    const fetchVoteAndDoneStatus = async () => {
-      try {
-        const response = await axios.get('http://localhost:3000/get-casted-vote', {
-          params: { RoomCode: roomCode, MemberId: memberId },
-        });
-        const data = response.data;
-  
-        if (data.success && data.castedVote !== null) {
-          const voteValue = data.castedVote;
-  
-          // Check if the voteValue matches any static option
-          if ([1, 2, 3, 5, 8, 13].includes(voteValue)) {
-            setCastedVote(voteValue); // For static options
-            setTextVote(''); // Clear the text box
-          } else {
-            setTextVote(voteValue); // Restore text vote
-            setCastedVote(voteValue); // Clear static options
-          }
-  
-          // Set the done status
-          setIsDone(data.isDone); // Update "done" status from the database
-        }
-      } catch (error) {
-        console.error('Error fetching the vote and done status:', error);
-      }
-    };
-  
-    fetchVoteAndDoneStatus();
-  }, [roomCode, memberId]);
-  
-  
-
-  // Poll the backend to check if the session is frozen and redirect members to results page if votes are revealed
-  useEffect(() => {
-    const intervalId = setInterval(async () => {
-      try {
-        const response = await axios.get('http://localhost:3000/voting-freeze-status', {
-          params: { RoomCode: roomCode },
-        });
-        const data = response.data;
-        if (data.success && data.VotingFrozen) {
-          setRevealVotes(true); // Update revealVotes to trigger useEffect below
-        }
-      } catch (error) {
-        console.error('Failed to fetch freeze status:', error);
-      }
-    }, 2000);
-
-    return () => clearInterval(intervalId); // Cleanup on unmount
-  }, [roomCode]);
-
-  // Redirect members to results page once votes are revealed
-  useEffect(() => {
-    if (revealVotes) {
-      navigate(`/results/${roomCode}`, { state: { memberName, isScrumMaster, memberId } });
-    }
-  }, [revealVotes, navigate, roomCode, memberName, isScrumMaster, memberId]);
-
   const handleToggleDone = async () => {
     if (isDone) {
       // Call the API to unmark as done
@@ -225,36 +260,6 @@ const VotingScreen: React.FC = () => {
       }
     }
   };
-
-  // Poll members' done status every 2 seconds
-useEffect(() => {
-  const fetchMembersDoneStatus = async () => {
-    try {
-      const response = await axios.get(`http://localhost:3000/members-done-status?RoomCode=${roomCode}`);
-
-      if (response.data.success) {
-        const updatedMembers = response.data.members.map((member: Member) => ({
-          name: member.MemberName,
-          isDone: member.IsDone,
-        }));
-
-        setMembers(updatedMembers);
-
-        // Fixing the property reference here
-        const allDone = updatedMembers.every((member: { isDone: boolean }) => member.isDone);
-        setAllMembersDone(allDone);
-      } else {
-        console.error('Failed to fetch members done status:', response.data.message);
-      }
-    } catch (error) {
-      console.error('Error fetching members done status:', error);
-    }
-  };
-
-  const interval = setInterval(fetchMembersDoneStatus, 2000);
-  return () => clearInterval(interval);
-}, [roomCode]);
-
 
   return (
     <div className="flex flex-col items-center justify-center h-screen bg-gray-50">

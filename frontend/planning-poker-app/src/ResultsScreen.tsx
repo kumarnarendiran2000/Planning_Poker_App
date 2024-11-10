@@ -31,6 +31,58 @@ const ResultsScreen: React.FC = () => {
     }
   }, [isScrumMaster, memberName]);
 
+  useEffect(() => {
+    const eventSource = new EventSource(`http://localhost:3000/sse/room-status?roomCode=${roomCode}`);
+  
+    eventSource.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      if (data.isActive === false) {
+        // Perform cleanup actions if the session is inactive
+        alert('This session has ended.');
+        navigate('/'); // Redirect to landing or home
+        localStorage.removeItem(`MemberName_${roomCode}`);
+        localStorage.removeItem(`MemberId_${roomCode}`);
+      }
+    };
+  
+    eventSource.onerror = (error) => {
+      console.error("Error with SSE:", error);
+      eventSource.close();
+    };
+  
+    return () => {
+      eventSource.close(); // Clean up on unmount
+    };
+  }, [navigate, roomCode]);
+
+  useEffect(() => {
+    const eventSource = new EventSource(`http://localhost:3000/sse/revote-status?RoomCode=${roomCode}`);
+  
+    eventSource.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      if (data.isRevote !== undefined) {
+        setIsRevote(data.isRevote); // Update the revote status from SSE data
+      }
+    };
+  
+    eventSource.onerror = (error) => {
+      console.error("Error with SSE:", error);
+      eventSource.close(); // Close the connection on error
+    };
+  
+    return () => {
+      eventSource.close(); // Clean up on component unmount
+    };
+  }, [roomCode]);
+
+  
+   // Redirect members to voting screen once revote is initiated
+   useEffect(() => {
+    if (isRevote) {
+      navigate(`/voting/${roomCode}`, { state: { memberName, memberId, isScrumMaster } });
+    }
+  }, [isRevote, navigate, roomCode, isScrumMaster, memberId, memberName]);
+
   // Function to handle revote (for Scrum Master only)
   const handleRevote = async () => {
     try {
@@ -71,28 +123,6 @@ const ResultsScreen: React.FC = () => {
     }
   };
   
-  useEffect(() => {
-    const checkRoomStatus = async () => {
-      try {
-        const response = await axios.get('http://localhost:3000/check-room-status', {
-          params: { roomCode },
-        });
-        if (response.data && !response.data.isActive) {
-          alert('This session has ended.');
-          navigate('/'); // Redirect to the landing page
-          // Clear local storage
-          localStorage.removeItem(`MemberName_${roomCode}`);
-          localStorage.removeItem(`MemberId_${roomCode}`);
-        }
-      } catch (error) {
-        console.error('Error checking room status:', error);
-      }
-    };
-  
-    const interval = setInterval(checkRoomStatus, 5000); // Check every 5 seconds
-    return () => clearInterval(interval); // Cleanup on unmount
-  }, [roomCode, navigate]);
-  
   // Fetch the votes and stats when the page loads
   useEffect(() => {
     const fetchResults = async () => {
@@ -125,44 +155,21 @@ const ResultsScreen: React.FC = () => {
     fetchResults();
   }, [roomCode]);
 
-  // Polling to check if revote is initiated
-  useEffect(() => {
-    const intervalId = setInterval(async () => {
-      try {
-        const response = await axios.get('http://localhost:3000/revote-status', {
-          params: { RoomCode: roomCode },
-        });
-        const data = response.data;
-        if (data.success && data.isRevote) {
-          setIsRevote(true);
-        }
-      } catch (error) {
-        console.error('Failed to fetch revote status:', error);
-      }
-    }, 2000); 
-
-    return () => clearInterval(intervalId);
-  }, [roomCode]);
-
-  // Redirect members to voting screen once revote is initiated
-  useEffect(() => {
-    if (isRevote) {
-      navigate(`/voting/${roomCode}`, { state: { memberName, memberId, isScrumMaster } });
-    }
-  }, [isRevote, navigate, roomCode, isScrumMaster, memberId, memberName]);
 
   return (
-    <div className="flex flex-col items-center justify-center h-screen bg-gray-100">
-      <div className="bg-white shadow-lg rounded-lg p-8 w-full max-w-3xl">
+    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100">
+      <div className="bg-white shadow-lg rounded-lg p-8 w-full max-w-3xl overflow-y-auto">
         <h1 className="text-4xl font-bold text-center mb-8">Voting Results</h1>
         <h2 className="text-2xl font-semibold mb-4 text-gray-700">Room Code: {roomCode}</h2>
-        
+  
         {!isScrumMaster ? (
-          <p className="text-lg mb-6">You are a Member: <strong>{memberName}</strong></p>
-        ):( 
-          <p className="text-lg mb-6">You are the <strong>{memberName}</strong></p>
+          <p className="text-lg mb-6">
+            You are a Member: <strong>{memberName}</strong>
+          </p>
+        ) : (
+          <p className="text-lg mb-6">You are the <strong>Scrum Master</strong></p>
         )}
-
+  
         {loading ? (
           <p className="text-gray-500">Loading results...</p>
         ) : error ? (
@@ -184,7 +191,7 @@ const ResultsScreen: React.FC = () => {
                 <p className="text-gray-500 font-bold text-2xl">No votes available.</p>
               )}
             </div>
-
+  
             {/* Voting Statistics Section */}
             {voteStats && (
               <div className="mt-4 bg-yellow-50 p-6 rounded-lg shadow-md">
@@ -197,26 +204,23 @@ const ResultsScreen: React.FC = () => {
                 </div>
               </div>
             )}
-
-            {/* Revote Button */}
+  
+            {/* Revote and End Session Buttons */}
             {isScrumMaster && (
-            <div>
-              <button
-                onClick={handleRevote}
-                className="mt-8 bg-green-600 hover:bg-green-700 text-white py-3 px-6 rounded-lg transition duration-300 shadow-md w-full"
-              >
-                Start a New Revote
-              </button>
-              <div>
+              <div className="space-y-4 mt-8">
+                <button
+                  onClick={handleRevote}
+                  className="bg-green-600 hover:bg-green-700 text-white py-3 px-6 rounded-lg transition duration-300 shadow-md w-full"
+                >
+                  Start a New Revote
+                </button>
                 <button
                   onClick={handleEndSession}
-                  className="mt-8 bg-red-600 hover:bg-red-700 text-white py-3 px-6 rounded-lg transition duration-300 shadow-md w-full"
+                  className="bg-red-600 hover:bg-red-700 text-white py-3 px-6 rounded-lg transition duration-300 shadow-md w-full"
                 >
                   End Session
                 </button>
               </div>
-            </div>
-              
             )}
           </>
         )}

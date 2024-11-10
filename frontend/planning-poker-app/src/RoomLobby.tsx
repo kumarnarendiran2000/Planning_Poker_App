@@ -22,77 +22,78 @@ const RoomLobby: React.FC = () => {
   }, [isScrumMaster, memberName]);
 
   useEffect(() => {
-    if (!roomCode) return;
-
-    const fetchMembers = async () => {
-      try {
-        const response = await axios.get(`http://localhost:3000/room-members`, {
-          params: { RoomCode: roomCode },
-        });
-        const data = response.data;
-        if (data.success) {
-          setMembers(data.members);
-        }
-      } catch (error) {
-        console.error('Failed to fetch members:', error);
-      }
+    const eventSource = new EventSource(`http://localhost:3000/sse/room-members?RoomCode=${roomCode}`);
+  
+    eventSource.onmessage = (event) => {
+      const updatedMembers = JSON.parse(event.data);
+      setMembers(updatedMembers); // Update the members list with SSE data
     };
-
-    fetchMembers();
-    const intervalId = setInterval(fetchMembers, 2000);
-    return () => clearInterval(intervalId);
+  
+    eventSource.onerror = (error) => {
+      console.error("Error with SSE:", error);
+      eventSource.close();
+    };
+  
+    return () => {
+      eventSource.close(); // Clean up on component unmount
+    };
   }, [roomCode]);
-
+  
   useEffect(() => {
     if (!roomCode) return;
-
-    const pollVotingStatus = async () => {
-      try {
-        const response = await axios.get(`http://localhost:3000/voting-status`, {
-          params: { RoomCode: roomCode },
-        });
-        const data = response.data;
-        if (data.votingStarted) {
-          setVotingStarted(true);
-        }
-      } catch (error) {
-        console.error('Failed to fetch voting status:', error);
+  
+    const eventSource = new EventSource(`http://localhost:3000/sse/voting-status?RoomCode=${roomCode}`);
+  
+    eventSource.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      if (data.votingStarted) {
+        setVotingStarted(true);
       }
     };
+  
+    eventSource.onerror = (error) => {
+      console.error("Error with SSE:", error);
+      eventSource.close();
+    };
+  
+    // Clean up the SSE connection when the component unmounts
+    return () => {
+      eventSource.close();
+    };
+  }, [roomCode]);  
 
-    pollVotingStatus();
-    const intervalId = setInterval(pollVotingStatus, 2000);
-    return () => clearInterval(intervalId);
-  }, [roomCode]);
+
+  useEffect(() => {
+    const eventSource = new EventSource(`http://localhost:3000/sse/room-status?roomCode=${roomCode}`);
+  
+    eventSource.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      if (data.isActive === false) {
+        // Perform cleanup actions if the session is inactive
+        alert('This session has ended.');
+        navigate('/'); // Redirect to landing or home
+        localStorage.removeItem(`MemberName_${roomCode}`);
+        localStorage.removeItem(`MemberId_${roomCode}`);
+      }
+    };
+  
+    eventSource.onerror = (error) => {
+      console.error("Error with SSE:", error);
+      eventSource.close();
+    };
+  
+    return () => {
+      eventSource.close(); // Clean up on unmount
+    };
+  }, [navigate, roomCode]);
+  
+  
 
   useEffect(() => {
     if (votingStarted) {
       navigate(`/voting/${roomCode}`, { state: { isScrumMaster, memberName, memberId } });
     }
   }, [votingStarted, navigate, roomCode, isScrumMaster, memberName, memberId]);
-
-  useEffect(() => {
-    const checkRoomStatus = async () => {
-      try {
-        const response = await axios.get('http://localhost:3000/check-room-status', {
-          params: { roomCode },
-        });
-        if (response.data && !response.data.isActive) {
-          alert('This session has ended.');
-          navigate('/'); // Redirect to the landing page
-          // Clear local storage
-          localStorage.removeItem(`MemberName_${roomCode}`);
-          localStorage.removeItem(`MemberId_${roomCode}`);
-        }
-      } catch (error) {
-        console.error('Error checking room status:', error);
-      }
-    };
-  
-    const interval = setInterval(checkRoomStatus, 5000); // Check every 5 seconds
-    return () => clearInterval(interval); // Cleanup on unmount
-  }, [roomCode, navigate]);
-  
 
   const handleStartVoting = async () => {
     try {

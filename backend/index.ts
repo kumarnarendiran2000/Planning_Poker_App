@@ -106,8 +106,6 @@ app.post('/create-room', async (c) => {
     }
   });
   
-  
-
   app.post('/start-voting', async (c) => {
     const { RoomCode } = await c.req.json();
     const pool = await connectToDatabase();
@@ -232,40 +230,6 @@ app.post('/create-room', async (c) => {
     }
   });
 
-
-app.get('/members-done-status', async (c) => {
-  const { RoomCode } = c.req.query();
-  const pool = await connectToDatabase();
-
-  try {
-    // Fetch the RoomId based on RoomCode
-    const roomResult = await pool.request()
-      .input('RoomCode', sql.NVarChar(50), RoomCode)
-      .query(`SELECT RoomId FROM Rooms WHERE RoomCode = @RoomCode`);
-
-    if (roomResult.recordset.length === 0) {
-      return c.json({ success: false, message: 'Room not found' }, 404);
-    }
-
-    const RoomId = roomResult.recordset[0].RoomId;
-
-    // Fetch all members and their done status for the given RoomId
-    const membersResult = await pool.request()
-      .input('RoomId', sql.UniqueIdentifier, RoomId)
-      .query(`
-        SELECT Members.MemberId, Members.MemberName, Members.IsDone
-        FROM Members
-        WHERE RoomId = @RoomId
-      `);
-
-    return c.json({ success: true, members: membersResult.recordset });
-  } catch (error) {
-    console.error('Error fetching members done status:', error);
-    return c.json({ success: false, message: 'Failed to fetch members done status' }, 500);
-  }
-});
-
-
 app.post('/cast-vote', async (c) => {
   const { RoomCode, MemberId, VoteValue } = await c.req.json();
   const pool = await connectToDatabase();
@@ -361,54 +325,6 @@ app.post('/reveal-votes', async (c) => {
   }
 });
 
-app.get('/voting-status', async (c) => {
-  try {
-    const { RoomCode } = c.req.query();
-    const pool = await connectToDatabase();
-
-    const result = await pool.request()
-      .input('RoomCode', sql.NVarChar(50), RoomCode)
-      .query(`SELECT VotingStarted FROM Rooms WHERE RoomCode = @RoomCode`);
-
-    if (result.recordset.length > 0) {
-      return c.json({ votingStarted: result.recordset[0].VotingStarted });
-    } else {
-      return c.json({ votingStarted: false, message: 'Room not found' }, 404);
-    }
-  } catch (error) {
-    console.error('Error fetching voting status:', error);
-    return c.json({ votingStarted: false, message: 'Server error' }, 500);
-  }
-});
-
-// SSE endpoint
-app.get('/sse/updates', (c) => {
-  const headers = {
-    'Content-Type': 'text/event-stream',
-    'Cache-Control': 'no-cache',
-    'Connection': 'keep-alive',
-  };
-
-  // Create a stream that will send a message every few seconds
-  const stream = new ReadableStream({
-    start(controller) {
-      const sendEvent = () => {
-        controller.enqueue(`data: Hello from server at ${new Date().toISOString()}\n\n`);
-      };
-
-      // Send a message every 2 seconds
-      const intervalId = setInterval(sendEvent, 2000);
-
-      // Clean up the interval when the stream is closed
-      controller.close = () => {
-        clearInterval(intervalId);
-      };
-    },
-  });
-
-  // Return the stream with appropriate headers
-  return new Response(stream, { headers });
-});
 
 app.get('/voting-stats', async (c) => {
   const { RoomCode } = c.req.query();
@@ -442,90 +358,6 @@ app.get('/voting-stats', async (c) => {
     return c.json({ success: false, message: 'Failed to fetch voting stats' }, 500);
   }
 });
-
-app.get('/room-members', async (c) => {
-  const { RoomCode } = c.req.query();
-  const pool = await connectToDatabase();
-
-  try {
-    // Get the RoomId based on RoomCode
-    const roomResult = await pool.request()
-      .input('RoomCode', sql.NVarChar(50), RoomCode)
-      .query(`SELECT RoomId FROM Rooms WHERE RoomCode = @RoomCode`);
-
-    if (roomResult.recordset.length === 0) {
-      return c.json({ success: false, message: 'Room not found' }, 404);
-    }
-
-    const RoomId = roomResult.recordset[0].RoomId;
-
-    // Get the list of members in the room
-    const membersResult = await pool.request()
-      .input('RoomId', sql.UniqueIdentifier, RoomId)
-      .query(`SELECT MemberName FROM Members WHERE RoomId = @RoomId`);
-
-    const members = membersResult.recordset.map(record => record.MemberName);
-
-    return c.json({ success: true, members });
-  } catch (error) {
-    console.error('Error fetching members:', error);
-    return c.json({ success: false, message: 'Failed to fetch members' }, 500);
-  }
-});
-
-
-app.get('/revote-status', async (c) => {
-  const { RoomCode } = c.req.query();
-  const pool = await connectToDatabase();
-
-  try {
-    const result = await pool.request()
-      .input('RoomCode', sql.NVarChar(50), RoomCode)
-      .query(`SELECT IsRevote FROM Rooms WHERE RoomCode = @RoomCode`);
-
-    if (result.recordset.length > 0) {
-      return c.json({ success: true, isRevote: result.recordset[0].IsRevote });
-    } else {
-      return c.json({ success: false, message: 'Room not found' });
-    }
-  } catch (error) {
-    return c.json({ success: false, message: 'Server error' });
-  }
-});
-
-  app.get('/get-casted-vote', async (c) => {
-    const { RoomCode, MemberId } = c.req.query();  // Get RoomCode and MemberId from the query params
-    const pool = await connectToDatabase();
-
-    try {
-      // Fetch the vote value and done status using MemberId and RoomCode
-      const result = await pool.request()
-        .input('RoomCode', sql.NVarChar(50), RoomCode)
-        .input('MemberId', sql.UniqueIdentifier, MemberId)  // Use MemberId instead of MemberName
-        .query(`
-          SELECT Votes.VoteValue, Members.IsDone
-          FROM Votes 
-          JOIN Members ON Votes.MemberId = Members.MemberId
-          JOIN Rooms ON Rooms.RoomId = Members.RoomId
-          WHERE Rooms.RoomCode = @RoomCode AND Members.MemberId = @MemberId
-        `);
-
-      // If no data is found, return a 404 response
-      if (result.recordset.length === 0) {
-        return c.json({ success: false, message: 'No data found' }, 404);
-      }
-
-      // Extract the vote value and done status from the result
-      const { VoteValue, IsDone } = result.recordset[0];
-      return c.json({ success: true, castedVote: VoteValue, isDone: IsDone });
-    } catch (error) {
-      console.error('Error fetching vote and done status:', error);
-      return c.json({ success: false, message: 'Failed to fetch data' }, 500);
-    }
-  });
-
-
-
 
 // Backend Revote Endpoint
 app.post('/revote', async (c) => {
@@ -564,27 +396,426 @@ app.post('/revote', async (c) => {
   }
 });
 
-// Voting freeze status endpoint
-app.get('/voting-freeze-status', async (c) => {
-  const { RoomCode } = c.req.query();
-  const pool = await connectToDatabase();
+//SSE endpoints from here
 
-  try {
-    const result = await pool.request()
-      .input('RoomCode', sql.NVarChar(50), RoomCode)
-      .query(`SELECT VotingFrozen FROM Rooms WHERE RoomCode = @RoomCode`);
+app.get('/sse/room-members', (c) => {
+  const headers = {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive',
+  };
 
-    if (result.recordset.length > 0) {
-      // Return the voting frozen status
-      return c.json({ success: true, VotingFrozen: result.recordset[0].VotingFrozen });
-    } else {
-      // If the room is not found
-      return c.json({ success: false, message: 'Room not found' }, 404);
-    }
-  } catch (error) {
-    console.error('Error fetching voting freeze status:', error);
-    return c.json({ success: false, message: 'Failed to fetch voting freeze status' }, 500);
+  let isStreamOpen = true;
+  const roomCode = c.req.query('RoomCode'); // Retrieve RoomCode from query params
+  if (!roomCode) {
+    return new Response('RoomCode is required', { status: 400 });
   }
+
+  const stream = new ReadableStream({
+    start(controller) {
+      //controller.enqueue('data: Stream started to send members joined\n\n');
+      console.log('Stream started to send membrs joined');
+    },
+
+    async pull(controller) {
+      if (!isStreamOpen) return;
+
+      const pool = await connectToDatabase();
+
+      try {
+        // Retrieve RoomId using RoomCode
+        const roomResult = await pool.request()
+          .input('RoomCode', sql.NVarChar(50), roomCode)
+          .query(`SELECT RoomId FROM Rooms WHERE RoomCode = @RoomCode`);
+
+        if (roomResult.recordset.length === 0) {
+          controller.enqueue(`data: ${JSON.stringify({ error: 'Room not found' })}\n\n`);
+          controller.close(); // Close stream if room is not found
+          return;
+        }
+
+        const roomId = roomResult.recordset[0].RoomId;
+
+        // Fetch updated member list
+        const membersResult = await pool.request()
+          .input('RoomId', sql.UniqueIdentifier, roomId)
+          .query(`SELECT MemberName FROM Members WHERE RoomId = @RoomId`);
+
+        const members = membersResult.recordset.map(record => record.MemberName);
+
+        // Send updated member list to client
+        controller.enqueue(`data: ${JSON.stringify(members)}\n\n`);
+      } catch (error) {
+        console.error('Error fetching members:', error);
+        controller.enqueue(`data: ${JSON.stringify({ error: 'Failed to fetch members' })}\n\n`);
+      }
+
+      // Wait for 2000ms (2 seconds) before next pull
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+    },
+
+    cancel() {
+      isStreamOpen = false;
+      console.log('Stream cancelled to send members joined');
+    },
+  });
+
+  return new Response(stream, { headers });
+});
+
+app.get('/sse/voting-status', (c) => {
+  const headers = {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive',
+  };
+
+  const roomCode = c.req.query('RoomCode');
+  if (!roomCode) {
+    return new Response('RoomCode is required', { status: 400 });
+  }
+
+  let isStreamOpen = true;
+
+  const stream = new ReadableStream({
+    async start(controller) {
+      console.log('Stream started to send voting status');
+      //controller.enqueue(`data: stream started to send voting status\n\n`);
+    },
+    async pull(controller) {
+      if (!isStreamOpen) return;
+
+      const pool = await connectToDatabase();
+      const result = await pool.request()
+        .input('RoomCode', sql.NVarChar(50), roomCode)
+        .query(`SELECT VotingStarted FROM Rooms WHERE RoomCode = @RoomCode`);
+
+      if (result.recordset.length === 0) {
+        controller.enqueue(`data: ${JSON.stringify({ error: 'Room not found' })}\n\n`);
+        return;
+      }
+
+      const votingStarted = result.recordset[0].VotingStarted;
+      controller.enqueue(`data: ${JSON.stringify({ votingStarted })}\n\n`);
+
+      // Wait for a short interval before checking again
+      return new Promise(resolve => setTimeout(resolve, 2000));
+    },
+    cancel() {
+      isStreamOpen = false;
+      console.log('SSE stream for voting status has been closed');
+    },
+  });
+
+  return new Response(stream, { headers });
+});
+
+app.get('/sse/room-status', (c) => {
+  const headers = {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive',
+  };
+
+  const roomCode = c.req.query('roomCode');
+  if (!roomCode) {
+    return new Response('RoomCode is required', { status: 400 });
+  }
+
+  let isStreamOpen = true;
+
+  const stream = new ReadableStream({
+    async start(controller) {
+      console.log('Stream started to send room status');
+      //controller.enqueue('data: stream started to send room status\n\n');
+    },
+    async pull(controller) {
+      if (!isStreamOpen) return;
+
+      try {
+        const pool = await connectToDatabase();
+        const result = await pool.request()
+          .input('RoomCode', sql.NVarChar(50), roomCode)
+          .query(`SELECT IsActive FROM Rooms WHERE RoomCode = @RoomCode`);
+
+        if (result.recordset.length === 0) {
+          controller.enqueue(`data: ${JSON.stringify({ error: 'Room not found' })}\n\n`);
+          isStreamOpen = false;
+          controller.close();
+          return;
+        }
+
+        const isActive = result.recordset[0].IsActive;
+        controller.enqueue(`data: ${JSON.stringify({ isActive })}\n\n`);
+
+        // Wait for a short interval before the next check
+        await new Promise(resolve => setTimeout(resolve, 5000));
+      } catch (error) {
+        console.error('Error checking room status:', error);
+        controller.enqueue(`data: ${JSON.stringify({ error: 'Failed to check room status' })}\n\n`);
+        isStreamOpen = false;
+        controller.close();
+      }
+    },
+    cancel() {
+      isStreamOpen = false;
+      console.log('SSE stream for room status has been closed');
+    },
+  });
+
+  return new Response(stream, { headers });
+});
+
+app.get('/sse/casted-vote-done-status', (c) => {
+  const headers = {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive',
+  };
+
+  const roomCode = c.req.query('RoomCode');
+  const memberId = c.req.query('MemberId');
+
+  if (!roomCode || !memberId) {
+    return new Response('RoomCode and MemberId are required', { status: 400 });
+  }
+
+  let isStreamOpen = true;
+
+  const stream = new ReadableStream({
+    async start(controller) {
+      console.log('Stream started to send casted vote and done status');
+      //controller.enqueue('data: stream started to send casted vote and done status\n\n');
+    },
+    async pull(controller) {
+      if (!isStreamOpen) return;
+
+      try {
+        const pool = await connectToDatabase();
+        const result = await pool.request()
+          .input('RoomCode', sql.NVarChar(50), roomCode)
+          .input('MemberId', sql.UniqueIdentifier, memberId)
+          .query(`
+            SELECT Votes.VoteValue, Members.IsDone
+            FROM Votes 
+            JOIN Members ON Votes.MemberId = Members.MemberId
+            JOIN Rooms ON Rooms.RoomId = Members.RoomId
+            WHERE Rooms.RoomCode = @RoomCode AND Members.MemberId = @MemberId
+          `);
+
+        if (result.recordset.length === 0) {
+          controller.enqueue(`data: ${JSON.stringify({ error: 'Currently no votes available' })}\n\n`);
+          isStreamOpen = false;
+          controller.close();
+          return;
+        }
+
+        const { VoteValue, IsDone } = result.recordset[0];
+        const updateData = { castedVote: VoteValue, isDone: IsDone };
+        controller.enqueue(`data: ${JSON.stringify(updateData)}\n\n`);
+
+        await new Promise(resolve => setTimeout(resolve, 5000));
+      } catch (error) {
+        console.error('Error fetching vote and done status:', error);
+        controller.enqueue(`data: ${JSON.stringify({ error: 'Failed to fetch data' })}\n\n`);
+        isStreamOpen = false;
+        controller.close();
+      }
+    },
+    cancel() {
+      isStreamOpen = false;
+      console.log('SSE stream for casted vote and done status has been closed');
+    },
+  });
+
+  return new Response(stream, { headers });
+});
+
+app.get('/sse/voting-freeze-status', (c) => {
+  const headers = {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive',
+  };
+
+  const roomCode = c.req.query('RoomCode');
+  if (!roomCode) {
+    return new Response('RoomCode is required', { status: 400 });
+  }
+
+  let isStreamOpen = true;
+
+  const stream = new ReadableStream({
+    async start(controller) {
+      console.log('Stream started to send voting freeze status');
+      //controller.enqueue('data: stream started to send votong freeze status\n\n');
+    },
+    async pull(controller) {
+      if (!isStreamOpen) return;
+
+      try {
+        const pool = await connectToDatabase();
+        const result = await pool.request()
+          .input('RoomCode', sql.NVarChar(50), roomCode)
+          .query(`SELECT VotingFrozen FROM Rooms WHERE RoomCode = @RoomCode`);
+
+        if (result.recordset.length === 0) {
+          controller.enqueue(`data: ${JSON.stringify({ error: 'Room not found' })}\n\n`);
+          isStreamOpen = false;
+          controller.close();
+          return;
+        }
+
+        const votingFrozen = result.recordset[0].VotingFrozen;
+        controller.enqueue(`data: ${JSON.stringify({ VotingFrozen: votingFrozen })}\n\n`);
+
+        // Check for updates every 2 seconds
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      } catch (error) {
+        console.error('Error fetching voting freeze status:', error);
+        controller.enqueue(`data: ${JSON.stringify({ error: 'Failed to fetch voting freeze status' })}\n\n`);
+        isStreamOpen = false;
+        controller.close();
+      }
+    },
+    cancel() {
+      isStreamOpen = false;
+      console.log('SSE stream for voting freeze status has been closed');
+    },
+  });
+
+  return new Response(stream, { headers });
+});
+
+app.get('/sse/members-done-status', (c) => {
+  const headers = {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive',
+  };
+
+  const roomCode = c.req.query('RoomCode');
+  if (!roomCode) {
+    return new Response('RoomCode is required', { status: 400 });
+  }
+
+  let isStreamOpen = true;
+
+  const stream = new ReadableStream({
+    async start(controller) {
+      console.log('Stream started to send membrs dpne status');
+      //controller.enqueue('data: stream started to send members done status\n\n');
+    },
+    async pull(controller) {
+      if (!isStreamOpen) return;
+
+      try {
+        const pool = await connectToDatabase();
+
+        // Get RoomId using RoomCode
+        const roomResult = await pool.request()
+          .input('RoomCode', sql.NVarChar(50), roomCode)
+          .query(`SELECT RoomId FROM Rooms WHERE RoomCode = @RoomCode`);
+
+        if (roomResult.recordset.length === 0) {
+          controller.enqueue(`data: ${JSON.stringify({ error: 'Room not found' })}\n\n`);
+          isStreamOpen = false;
+          controller.close();
+          return;
+        }
+
+        const RoomId = roomResult.recordset[0].RoomId;
+
+        // Fetch all members and their done status for the RoomId
+        const membersResult = await pool.request()
+          .input('RoomId', sql.UniqueIdentifier, RoomId)
+          .query(`
+            SELECT Members.MemberId, Members.MemberName, Members.IsDone
+            FROM Members
+            WHERE RoomId = @RoomId
+          `);
+
+        const members = membersResult.recordset.map(record => ({
+          name: record.MemberName,
+          isDone: record.IsDone,
+        }));
+
+        // Send the updated members' done status to the client
+        controller.enqueue(`data: ${JSON.stringify(members)}\n\n`);
+
+        // Wait before checking for updates again
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      } catch (error) {
+        console.error('Error fetching members done status:', error);
+        controller.enqueue(`data: ${JSON.stringify({ error: 'Failed to fetch members done status' })}\n\n`);
+        isStreamOpen = false;
+        controller.close();
+      }
+    },
+    cancel() {
+      isStreamOpen = false;
+      console.log('SSE stream for members done status has been closed');
+    },
+  });
+
+  return new Response(stream, { headers });
+});
+
+// SSE endpoint for revote status
+app.get('/sse/revote-status', (c) => {
+  const headers = {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive',
+  };
+
+  const roomCode = c.req.query('RoomCode'); // Retrieve RoomCode from query params
+  if (!roomCode) {
+    return new Response('RoomCode is required', { status: 400 });
+  }
+
+  let isStreamOpen = true;
+
+  const stream = new ReadableStream({
+    async start(controller) {
+      console.log('Stream started to send revote status');
+      //controller.enqueue('data: stream started to send revote status\n\n'); // Initial message
+    },
+    async pull(controller) {
+      if (!isStreamOpen) return;
+
+      try {
+        const pool = await connectToDatabase();
+        const result = await pool.request()
+          .input('RoomCode', sql.NVarChar(50), roomCode)
+          .query(`SELECT IsRevote FROM Rooms WHERE RoomCode = @RoomCode`);
+
+        if (result.recordset.length === 0) {
+          controller.enqueue(`data: ${JSON.stringify({ error: 'Room not found' })}\n\n`);
+          isStreamOpen = false;
+          controller.close();
+          return;
+        }
+
+        const isRevote = result.recordset[0].IsRevote;
+        controller.enqueue(`data: ${JSON.stringify({ isRevote })}\n\n`);
+
+        // Wait for a short interval before the next check
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      } catch (error) {
+        console.error('Error fetching revote status:', error);
+        controller.enqueue(`data: ${JSON.stringify({ error: 'Failed to fetch revote status' })}\n\n`);
+        isStreamOpen = false;
+        controller.close();
+      }
+    },
+    cancel() {
+      isStreamOpen = false;
+      console.log('SSE stream for revote status has been closed');
+    },
+  });
+
+  return new Response(stream, { headers });
 });
 
 serve(app);
