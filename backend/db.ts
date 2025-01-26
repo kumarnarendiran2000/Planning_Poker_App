@@ -2,7 +2,7 @@ import sql from 'mssql';
 
 const config = {
   user: 'sa',
-  password: 'muppet',
+  password: 'muppetmuppet',
   server: 'localhost', 
   database: 'PlanningPoker',
   options: {

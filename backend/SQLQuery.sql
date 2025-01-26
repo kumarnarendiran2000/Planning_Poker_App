@@ -12,6 +12,7 @@ CREATE TABLE Rooms (
     VotingStarted BIT DEFAULT 0,                         -- Flag indicating if voting has started
     IsRevote BIT DEFAULT 0,                              -- Flag indicating if a revote has been initiated
     VotingFrozen BIT DEFAULT 0                           -- Flag indicating if votes are revealed (frozen)
+    IsActive BIT DEFAULT 1
 );
 
 
@@ -19,6 +20,7 @@ CREATE TABLE Members (
     MemberId UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),  -- Use GUID for MemberId
     RoomId UNIQUEIDENTIFIER NOT NULL,                      -- Foreign Key to Rooms table
     MemberName NVARCHAR(100) NOT NULL,                     -- Name of the member
+    IsDone BIT DEFAULT 0
     FOREIGN KEY (RoomId) REFERENCES Rooms(RoomId) ON DELETE CASCADE  -- Cascade delete when the room is deleted
 );
 
